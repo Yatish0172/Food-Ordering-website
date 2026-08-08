@@ -1,0 +1,6 @@
+{
+  "name": "The Karaoke Kitchen",
+  "description": "High-voltage late night street food engineered for the afterparty. Savor the Beat. Eat the Volume.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

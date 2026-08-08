@@ -1,0 +1,47 @@
+{
+    "name": "karaoke-kitchen",
+    "private": true,
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "concurrently -k -n API,WEB -c magenta,cyan npm:dev:server npm:dev:web",
+        "build": "vite build && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-server/index.js",
+        "preview": "vite preview",
+        "clean": "rm -rf dist server.js",
+        "lint": "tsc --noEmit",
+        "dev:web": "vite --port=3000 --host=0.0.0.0",
+        "dev:server": "tsx watch server/index.ts",
+        "start": "node dist-server/index.js",
+        "check": "npm run lint && npm run build",
+        "test:security": "npm run build && node scripts/security-smoke.mjs"
+    },
+    "dependencies": {
+        "@tailwindcss/vite": "^4.1.14",
+        "@vitejs/plugin-react": "^5.0.4",
+        "bcryptjs": "^3.0.3",
+        "better-sqlite3": "^13.0.3",
+        "dotenv": "^17.2.3",
+        "express": "^4.21.2",
+        "express-rate-limit": "^8.6.2",
+        "helmet": "^8.3.0",
+        "react": "^19.0.1",
+        "react-dom": "^19.0.1",
+        "vite": "^6.2.3",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "@types/better-sqlite3": "^9.6.0",
+        "@types/express": "^4.17.21",
+        "@types/node": "^22.14.0",
+        "autoprefixer": "^10.4.21",
+        "concurrently": "^10.0.4",
+        "esbuild": "^0.25.0",
+        "tailwindcss": "^4.1.14",
+        "tsx": "^4.21.0",
+        "typescript": "~5.8.2",
+        "vite": "^6.2.3"
+    },
+    "engines": {
+        "node": ">=20"
+    }
+}
