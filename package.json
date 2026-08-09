@@ -19,7 +19,9 @@
     "cf:deploy": "npm run build && wrangler deploy",
     "cf:migrate:local": "wrangler d1 migrations apply DB --local",
     "cf:migrate:remote": "wrangler d1 migrations apply DB --remote",
-    "test:security": "npm run build:railway && node scripts/security-smoke.mjs"
+    "test:security": "npm run build:railway && node scripts/security-smoke.mjs",
+    "cf:test": "npm run cf:migrate:local && node scripts/cloudflare-local-smoke.mjs",
+    "cf:smoke": "node scripts/cloudflare-live-smoke.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

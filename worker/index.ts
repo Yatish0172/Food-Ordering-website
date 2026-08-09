@@ -11,6 +11,7 @@ interface Env {
   ADMIN_EMAIL: string;
   ADMIN_PASSWORD: string;
   AUTH_SECRET: string;
+  PASSWORD_PEPPER?: string;
   DELIVERY_PIN_CODES: string;
 }
 
@@ -69,6 +70,29 @@ class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) { super(message); }
 }
 
+function isStrongAdminPassword(value: string | undefined) {
+  return Boolean(value && value.length >= 14 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value) && /[^A-Za-z0-9]/.test(value));
+}
+function configurationIssues(env: Env) {
+  const issues: string[] = [];
+  if (!env.AUTH_SECRET || env.AUTH_SECRET.length < 64) issues.push('AUTH_SECRET');
+  if (!env.PASSWORD_PEPPER || env.PASSWORD_PEPPER.length < 64) issues.push('PASSWORD_PEPPER');
+  if (!env.ADMIN_EMAIL || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(env.ADMIN_EMAIL)) issues.push('ADMIN_EMAIL');
+  if (!isStrongAdminPassword(env.ADMIN_PASSWORD)) issues.push('ADMIN_PASSWORD');
+  const pinValues = (env.DELIVERY_PIN_CODES || '').split(',').map(value => value.trim()).filter(Boolean);
+  if (!pinValues.length || pinValues.some(value => !/^\d{6}$/.test(value))) issues.push('DELIVERY_PIN_CODES');
+  return issues;
+}
+function passwordPepper(env: Env) {
+  const value = env.PASSWORD_PEPPER;
+  if (!value || value.length < 64) throw new ApiError(503, 'Account service is temporarily unavailable.');
+  return value;
+}
+function requireAdminConfiguration(env: Env) {
+  if (!env.AUTH_SECRET || env.AUTH_SECRET.length < 64 || !env.ADMIN_EMAIL || !isStrongAdminPassword(env.ADMIN_PASSWORD)) {
+    throw new ApiError(503, 'Admin service is temporarily unavailable.');
+  }
+}
 function securityHeaders(requestId: string, api = true) {
   const headers = new Headers({
     'X-Request-Id': requestId,
@@ -232,7 +256,8 @@ async function handleApi(request: Request, env: Env, requestId: string) {
 
   if (request.method === 'GET' && path === '/api/health') {
     await env.DB.prepare('SELECT 1').first();
-    return json({ ok: true, mode: 'cod', platform: 'cloudflare' }, 200, requestId);
+    const issues = configurationIssues(env);
+    return json({ ok: issues.length === 0, mode: 'cod', platform: 'cloudflare', configuration: issues.length ? 'incomplete' : 'ready', missing: issues }, issues.length ? 503 : 200, requestId);
   }
   if (request.method === 'POST' && path === '/api/auth/register') {
     await enforceRateLimit(env, request, 'register', 5, 3600);
@@ -242,7 +267,7 @@ async function handleApi(request: Request, env: Env, requestId: string) {
     if (existing) throw new ApiError(409, 'An account with this email already exists.');
     const id = crypto.randomUUID(); const now = new Date().toISOString();
     await env.DB.prepare(`INSERT INTO users (id, email, password_hash, first_name, last_name, phone, street_address, apt_suite, zip_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, parsed.data.email, await hashPassword(parsed.data.password, env.AUTH_SECRET), parsed.data.firstName, parsed.data.lastName, parsed.data.phone, parsed.data.streetAddress, parsed.data.aptSuite, parsed.data.zipCode, now, now).run();
+      .bind(id, parsed.data.email, await hashPassword(parsed.data.password, passwordPepper(env)), parsed.data.firstName, parsed.data.lastName, parsed.data.phone, parsed.data.streetAddress, parsed.data.aptSuite, parsed.data.zipCode, now, now).run();
     const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>();
     return json({ user: publicUser(user!) }, 201, requestId, { 'Set-Cookie': await issueCustomerSession(env, id, parsed.data.rememberMe) });
   }
@@ -251,7 +276,7 @@ async function handleApi(request: Request, env: Env, requestId: string) {
     const parsed = z.object({ email: z.string().trim().email().max(120), password: z.string().min(1).max(72), rememberMe: z.boolean().optional().default(true) }).safeParse(await parseBody(request));
     if (!parsed.success) throw new ApiError(400, 'Enter a valid email and password.');
     const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(parsed.data.email.toLowerCase()).first<UserRow>();
-    if (!user || !(await verifyPassword(parsed.data.password, user.password_hash, env.AUTH_SECRET))) throw new ApiError(401, 'Invalid email or password.');
+    if (!user || !(await verifyPassword(parsed.data.password, user.password_hash, passwordPepper(env)))) throw new ApiError(401, 'Invalid email or password.');
     await env.DB.prepare('DELETE FROM customer_sessions WHERE expires_at <= ?').bind(new Date().toISOString()).run();
     return json({ user: publicUser(user) }, 200, requestId, { 'Set-Cookie': await issueCustomerSession(env, user.id, parsed.data.rememberMe) });
   }
@@ -274,8 +299,10 @@ async function handleApi(request: Request, env: Env, requestId: string) {
     await enforceRateLimit(env, request, 'orders', 12, 900);
     const parsed = orderSchema.safeParse(await parseBody(request));
     if (!parsed.success) throw new ApiError(400, 'Please check your order details.', parsed.error.flatten());
-    const deliveryPins = new Set((env.DELIVERY_PIN_CODES || '').split(',').map(value => value.trim()).filter(value => /^\d{6}$/.test(value)));
-    if (parsed.data.fulfilment.type === 'delivery' && deliveryPins.size && !deliveryPins.has(parsed.data.fulfilment.zipCode)) throw new ApiError(400, 'Delivery is not available for this PIN code yet.');
+    const deliveryPinValues = (env.DELIVERY_PIN_CODES || '').split(',').map(value => value.trim()).filter(Boolean);
+    const deliveryPins = new Set(deliveryPinValues.filter(value => /^\d{6}$/.test(value)));
+    if (parsed.data.fulfilment.type === 'delivery' && deliveryPins.size === 0) throw new ApiError(503, 'Delivery ordering is temporarily unavailable. Please choose pickup.');
+    if (parsed.data.fulfilment.type === 'delivery' && !deliveryPins.has(parsed.data.fulfilment.zipCode)) throw new ApiError(400, 'Delivery is not available for this PIN code yet.');
     const calculated = calculateOrder(parsed.data); const user = await sessionUser(request, env);
     const id = crypto.randomUUID(); const trackingToken = randomToken(24); const now = new Date().toISOString();
     const orderNumber = `TKK-${now.slice(2, 10).replace(/-/g, '')}-${randomToken(5).replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase()}`;
@@ -292,6 +319,7 @@ async function handleApi(request: Request, env: Env, requestId: string) {
     return json({ order: mapOrder(row) }, 200, requestId);
   }
   if (request.method === 'POST' && path === '/api/admin/login') {
+    requireAdminConfiguration(env);
     await enforceRateLimit(env, request, 'admin-login', 8, 900);
     const parsed = z.object({ email: z.string().email(), password: z.string().min(8).max(200) }).safeParse(await parseBody(request));
     if (!parsed.success) throw new ApiError(400, 'Enter a valid email and password.');
@@ -333,7 +361,13 @@ export default {
     const supplied = request.headers.get('x-request-id') || '';
     const requestId = /^[A-Za-z0-9._-]{8,80}$/.test(supplied) ? supplied : crypto.randomUUID();
     try {
-      if (!new URL(request.url).pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+      if (!new URL(request.url).pathname.startsWith('/api/')) {
+        const asset = await env.ASSETS.fetch(request);
+        const headers = new Headers(asset.headers);
+        const additions = securityHeaders(requestId, false);
+        additions.forEach((value, key) => headers.set(key, value));
+        return new Response(asset.body, { status: asset.status, statusText: asset.statusText, headers });
+      }
       if (Math.random() < 0.01) ctx.waitUntil(env.DB.prepare('DELETE FROM rate_limits WHERE expires_at < ?').bind(Math.floor(Date.now() / 1000)).run().then(() => undefined));
       return await handleApi(request, env, requestId);
     } catch (error) {

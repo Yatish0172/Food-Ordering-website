@@ -11,7 +11,7 @@ This is the primary production target. The React/Vite storefront is served as Wo
 
 ## Required secrets
 
-Configure these in Cloudflare Workers & Pages > karaoke-kitchen > Settings > Variables and Secrets. Mark all four as encrypted secrets.
+Configure these in Cloudflare Workers & Pages > karaoke-kitchen > Settings > Variables and Secrets. Mark all five as encrypted secrets.
 
 - `ADMIN_EMAIL`: private admin email
 - `ADMIN_PASSWORD`: unique 14+ character password with upper/lowercase, number, and symbol
@@ -53,4 +53,8 @@ A Worker custom domain requires the domain to be an active Cloudflare zone. Add 
 - `npm run build`: builds the Vite storefront
 - `npm run cf:dry-run`: validates the Worker bundle and static asset upload
 - `npm run cf:migrate:local`: applies D1 migrations locally
+- `npm run cf:test`: applies local D1 migrations and exercises the complete Worker ordering flow
+- `npm run cf:smoke -- https://your-domain`: verifies the deployed storefront, headers, health, and controlled 404s
 - `npm run test:security`: keeps the legacy Express security regression suite available
+
+GitHub Actions runs these checks on every push and pull request. Cloudflare observability is enabled for production diagnostics.
