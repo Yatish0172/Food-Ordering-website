@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
+import type { StoreStatus } from '../storeHours';
 import { OrderRecord, OrderStatus } from '../types';
 
 const statusOptions: OrderStatus[] = ['received', 'confirmed', 'cooking', 'ready', 'completed', 'cancelled'];
@@ -34,6 +35,7 @@ function playOrderTone() {
 export const AdminDashboard = ({ token, onLogout, onBack }: { token: string; onLogout: () => void; onBack: () => void }) => {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [summary, setSummary] = useState({ count: 0, revenue: 0 });
+  const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null);
   const [byStatus, setByStatus] = useState<Array<{ status: string; count: number }>>([]);
   const [section, setSection] = useState<'active' | 'history'>('active');
   const [filter, setFilter] = useState('active');
@@ -48,10 +50,11 @@ export const AdminDashboard = ({ token, onLogout, onBack }: { token: string; onL
 
   const refresh = useCallback(async () => {
     try {
-      const [orderData, summaryData, receivedData] = await Promise.all([
+      const [orderData, summaryData, receivedData, storeData] = await Promise.all([
         api.adminOrders(token, filter, page),
         api.adminSummary(token),
         api.adminOrders(token, 'received'),
+        api.storeStatus(),
       ]);
       if (knownReceivedIds.current) {
         const newOrders = receivedData.orders.filter(order => !knownReceivedIds.current!.has(order.id));
@@ -62,7 +65,7 @@ export const AdminDashboard = ({ token, onLogout, onBack }: { token: string; onL
       }
       knownReceivedIds.current = new Set(receivedData.orders.map(order => order.id));
       if (orderData.pagination.page > orderData.pagination.pages) { setPage(orderData.pagination.pages); return; }
-      setOrders(orderData.orders); setPagination(orderData.pagination); setSummary(summaryData.today); setByStatus(summaryData.byStatus); setError('');
+      setOrders(orderData.orders); setPagination(orderData.pagination); setSummary(summaryData.today); setByStatus(summaryData.byStatus); setStoreStatus(storeData.store); setError('');
       if (selected) setSelected(orderData.orders.find(order => order.id === selected.id) || null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not load orders.';
@@ -93,7 +96,8 @@ export const AdminDashboard = ({ token, onLogout, onBack }: { token: string; onL
 
       <div className="p-5 md:p-10 max-w-[1500px] mx-auto">
         {newOrderAlert && <div role="status" className="mb-5 rounded-2xl border border-[#00dbe9] bg-[#00dbe9]/10 p-4 flex items-center justify-between gap-3"><strong className="text-[#00dbe9]">{newOrderAlert}</strong><button onClick={() => setNewOrderAlert('')} className="text-sm">DISMISS</button></div>}
-        <section className="grid sm:grid-cols-3 gap-4 mb-8">
+        <section className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+          <Metric label="KITCHEN" value={storeStatus ? (storeStatus.open ? 'OPEN' : 'CLOSED') : 'CHECKING'} icon={storeStatus?.open ? 'restaurant' : 'schedule'} />
           <Metric label="TODAY'S ORDERS" value={summary.count} icon="receipt_long" />
           <Metric label="TODAY'S VALUE" value={`₹${summary.revenue}`} icon="payments" />
           <Metric label="ACTIVE QUEUE" value={active} icon="skillet" />

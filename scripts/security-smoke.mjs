@@ -48,7 +48,7 @@ const child = spawn(process.execPath, ['dist-server/index.js'], {
     ADMIN_EMAIL: adminEmail,
     ADMIN_PASSWORD: adminPassword,
     AUTH_SECRET: 'a'.repeat(96),
-    DELIVERY_PIN_CODES: '560001',
+    STORE_TEST_NOW: '2026-08-10T06:30:00.000Z',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -59,7 +59,9 @@ try {
   await waitForServer();
 
   let result = await call('/api/health');
-  assert.deepEqual(result.body, { ok: true, mode: 'cod' });
+  assert.equal(result.body.ok, true);
+  assert.equal(result.body.mode, 'cod');
+  assert.equal(result.body.store.open, true);
   pass('COD health response');
   const homeResponse = await fetch(base + '/');
   assert.equal(homeResponse.status, 200);
@@ -162,9 +164,9 @@ try {
       items: [{ menuItemId: 'cold-coffee', quantity: 1 }],
     }),
   });
-  assert.equal(result.response.status, 400);
-  assert.match(result.body.error, /Delivery is not available/);
-  pass('delivery service area enforced');
+  assert.equal(result.response.status, 201);
+  assert.equal(result.body.order.fulfilment.type, 'delivery');
+  pass('delivery PIN is collected without service-area restriction');
 
   result = await call('/api/orders', {
     method: 'POST',

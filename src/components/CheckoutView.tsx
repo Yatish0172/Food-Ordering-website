@@ -1,17 +1,19 @@
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { api, serializeCart } from '../api';
 import { menuItemUnitPrice } from '../pricing';
+import type { StoreStatus } from '../storeHours';
 import { CartItem, OrderRecord, ScreenType, User } from '../types';
 
 interface Props {
   cartItems: CartItem[];
   subtotal: number;
   currentUser: User | null;
+  storeStatus: StoreStatus | null;
   onPlaceOrder: (order: OrderRecord) => void;
   onNavigate: (screen: ScreenType) => void;
 }
 
-export const CheckoutView = ({ cartItems, subtotal, currentUser, onPlaceOrder, onNavigate }: Props) => {
+export const CheckoutView = ({ cartItems, subtotal, currentUser, storeStatus, onPlaceOrder, onNavigate }: Props) => {
   const [form, setForm] = useState({
     firstName: currentUser?.firstName || '',
     lastName: currentUser?.lastName || '',
@@ -33,9 +35,12 @@ export const CheckoutView = ({ cartItems, subtotal, currentUser, onPlaceOrder, o
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!cartItems.length) return setError('Your cart is empty. Add at least one menu item.');
+    if (!storeStatus?.open) return setError(storeStatus ? `The kitchen is closed. ${storeStatus.nextChange}.` : 'Could not verify kitchen hours. Please wait a moment and try again.');
     setSubmitting(true);
     setError('');
     try {
+      const freshStatus = await api.storeStatus();
+      if (!freshStatus.store.open) throw new Error(`The kitchen is closed. ${freshStatus.store.nextChange}.`);
       const result = await api.createOrder({
         customer: {
           firstName: form.firstName,
@@ -79,6 +84,10 @@ export const CheckoutView = ({ cartItems, subtotal, currentUser, onPlaceOrder, o
             <p className="font-['Space_Mono'] text-[#00dbe9] text-xs tracking-[.25em] mb-2">SECURE COD CHECKOUT</p>
             <h1 className="font-['Bricolage_Grotesque'] text-4xl md:text-6xl font-extrabold text-[#ffb2ba]">Finish your order</h1>
           </div>
+          <div role="status" className={`rounded-2xl border p-4 ${storeStatus?.open ? 'border-emerald-400/50 bg-emerald-400/10 text-emerald-200' : 'border-[#ff562c]/60 bg-[#ff562c]/10 text-[#ffdad2]'}`}>
+            <strong className="block">{storeStatus?.open ? 'Kitchen is open — orders are being accepted' : storeStatus ? 'Kitchen is currently closed' : 'Checking kitchen hours…'}</strong>
+            <small>{storeStatus?.nextChange || 'Order submission will unlock after hours are verified.'}</small>
+          </div>
 
           <section className="glass-panel rounded-2xl border border-white/10 p-6" aria-labelledby="contact-heading">
             <h2 id="contact-heading" className="font-['Bricolage_Grotesque'] text-2xl font-bold mb-5">Contact details</h2>
@@ -106,7 +115,7 @@ export const CheckoutView = ({ cartItems, subtotal, currentUser, onPlaceOrder, o
                   {field('street-address', 'Street address', <input id="street-address" required maxLength={180} className={inputClass} autoComplete="street-address" value={form.streetAddress} onChange={update('streetAddress')} />)}
                 </div>
                 {field('landmark', 'Apartment or landmark (optional)', <input id="landmark" maxLength={100} className={inputClass} value={form.aptSuite} onChange={update('aptSuite')} />)}
-                {field('postal-code', '6-digit PIN code', <input id="postal-code" required className={inputClass} inputMode="numeric" pattern="[0-9]{6}" autoComplete="postal-code" value={form.zipCode} onChange={update('zipCode')} />)}
+                {field('postal-code', '6-digit delivery PIN code (no area restriction)', <input id="postal-code" required className={inputClass} inputMode="numeric" pattern="[0-9]{6}" autoComplete="postal-code" value={form.zipCode} onChange={update('zipCode')} />)}
               </div>
             )}
             <div className="mt-4">
@@ -125,7 +134,7 @@ export const CheckoutView = ({ cartItems, subtotal, currentUser, onPlaceOrder, o
           </section>
 
           {error && <div role="alert" className="rounded-xl border border-[#ff562c] bg-[#ff562c]/10 p-4 text-[#ffdad2]">{error}</div>}
-          <button type="submit" disabled={submitting || !cartItems.length} className="w-full bg-[#ffb2ba] disabled:opacity-50 text-[#670020] font-['Space_Mono'] font-bold py-4 rounded-full neo-brutal-shadow">
+          <button type="submit" disabled={submitting || !cartItems.length || !storeStatus?.open} className="w-full bg-[#ffb2ba] disabled:opacity-50 text-[#670020] font-['Space_Mono'] font-bold py-4 rounded-full neo-brutal-shadow">
             {submitting ? 'PLACING ORDER…' : 'PLACE COD ORDER · ₹' + payableTotal}
           </button>
         </form>

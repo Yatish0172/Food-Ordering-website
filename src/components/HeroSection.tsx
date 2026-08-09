@@ -1,11 +1,13 @@
 import React from 'react';
+import type { StoreStatus } from '../storeHours';
 import { ScreenType } from '../types';
 
 interface HeroSectionProps {
   onNavigate: (screen: ScreenType) => void;
+  storeStatus: StoreStatus | null;
 }
 
-export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
+export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate, storeStatus }) => {
   return (
     <section className="relative w-full rounded-2xl overflow-hidden glass-panel border border-white/10 mb-10 md:mb-16 flex flex-col md:flex-row min-h-[65vh] lg:min-h-[70vh]">
       {/* Background Crowd Photography with Noise and Gradients */}
@@ -24,9 +26,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
       {/* Hero Left Text Column */}
       <div className="relative z-10 p-6 md:p-12 lg:p-16 flex flex-col justify-center w-full md:w-1/2">
         <div className="flex items-center gap-2 mb-4 inline-flex bg-[#2e3445]/80 backdrop-blur border border-white/10 rounded-full px-3 py-1 w-fit">
-          <div className="w-3 h-3 rounded-full bg-[#ff562c] recording-dot"></div>
-          <span className="font-['Space_Mono'] text-xs text-[#ffdad2] flicker-text uppercase tracking-widest font-bold">
-            Live: Kitchen
+          <div className={`w-3 h-3 rounded-full ${storeStatus?.open ? 'bg-emerald-400 recording-dot' : 'bg-[#ff562c]'}`}></div>
+          <span className="font-['Space_Mono'] text-xs text-[#ffdad2] uppercase tracking-widest font-bold">
+            {storeStatus ? storeStatus.message : 'Checking kitchen hours…'}
           </span>
         </div>
 
@@ -46,7 +48,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
         </h1>
 
         <p className="font-['Hanken_Grotesk'] text-base md:text-lg text-[#e7bcbf] max-w-md mb-8 leading-relaxed">
-          Late night cravings hit different when the bass drops. High-voltage street food engineered for the afterparty.
+          Fresh comfort food, café favourites, and full meals served in two daily kitchen sessions in Upper Kandoli.
         </p>
 
         <div className="flex flex-wrap gap-4">

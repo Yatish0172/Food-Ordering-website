@@ -18,6 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MENU_ITEMS } from '../src/data/menuItems';
 import { optionSurcharge } from '../src/pricing';
+import { getStoreStatus } from '../src/storeHours';
 
 dotenv.config({ path: '.env.local', override: false });
 
@@ -35,9 +36,10 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Karaoke@2026';
 const AUTH_SECRET = process.env.AUTH_SECRET || 'local-development-secret-change-before-production';
 const APP_URL = process.env.APP_URL || 'http://localhost:3000';
 const TRUST_PROXY_HOPS = Number(process.env.TRUST_PROXY_HOPS || (isProduction ? 1 : 0));
-const DELIVERY_PIN_CODE_VALUES = (process.env.DELIVERY_PIN_CODES || '').split(',').map(value => value.trim()).filter(Boolean);
-const DELIVERY_PIN_CODES = new Set(DELIVERY_PIN_CODE_VALUES.filter(value => /^[0-9]{6}$/.test(value)));
-const HAS_INVALID_DELIVERY_PIN = DELIVERY_PIN_CODE_VALUES.some(value => !/^[0-9]{6}$/.test(value));
+const currentStoreStatus = () => {
+  const testDate = !isProduction && process.env.STORE_TEST_NOW ? new Date(process.env.STORE_TEST_NOW) : undefined;
+  return getStoreStatus(testDate && !Number.isNaN(testDate.getTime()) ? testDate : new Date());
+};
 
 if (!Number.isInteger(TRUST_PROXY_HOPS) || TRUST_PROXY_HOPS < 0 || TRUST_PROXY_HOPS > 3) {
   throw new Error('TRUST_PROXY_HOPS must be an integer between 0 and 3.');
@@ -55,8 +57,7 @@ if (isProduction) {
     (!process.env.AUTH_SECRET || AUTH_SECRET.length < 64) && 'AUTH_SECRET (64+ random characters)',
     !process.env.DATA_DIR && 'DATA_DIR (persistent volume path)',
     !process.env.APP_URL && 'APP_URL',
-    DELIVERY_PIN_CODES.size === 0 && 'DELIVERY_PIN_CODES (comma-separated 6-digit serviceable PIN codes)',
-    HAS_INVALID_DELIVERY_PIN && 'valid DELIVERY_PIN_CODES',
+
     !secureAppUrl && 'HTTPS APP_URL',
   ].filter(Boolean);
   if (missing.length) throw new Error('Production configuration missing: ' + missing.join(', '));
@@ -440,16 +441,18 @@ app.get('/api/account/orders', requireCustomer, (_req, res) => {
 });
 app.get('/api/health', (_req, res) => {
   db.prepare('SELECT 1').get();
-  res.json({ ok: true, mode: 'cod' });
+  res.json({ ok: true, mode: 'cod', store: currentStoreStatus() });
+});
+app.get('/api/store-status', (_req, res) => {
+  res.json({ store: currentStoreStatus() });
 });
 
 app.post('/api/orders', orderLimiter, (req, res) => {
   const parsed = orderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Please check your order details.', details: parsed.error.flatten() });
   try {
-    if (parsed.data.fulfilment.type === 'delivery' && DELIVERY_PIN_CODES.size && !DELIVERY_PIN_CODES.has(parsed.data.fulfilment.zipCode)) {
-      throw new OrderInputError('Delivery is not available for this PIN code yet.');
-    }
+    const store = currentStoreStatus();
+    if (!store.open) return res.status(409).json({ error: `The kitchen is currently closed. ${store.nextChange}.`, store });
     const calculated = calculateOrder(parsed.data);
     const customerUserId = sessionUser(req)?.id || null;
     const id = randomUUID();

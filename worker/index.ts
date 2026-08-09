@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { MENU_ITEMS } from '../src/data/menuItems';
 import { optionSurcharge } from '../src/pricing';
+import { getStoreStatus } from '../src/storeHours';
 
 interface Env {
   DB: D1Database;
@@ -12,7 +13,8 @@ interface Env {
   ADMIN_PASSWORD: string;
   AUTH_SECRET: string;
   PASSWORD_PEPPER?: string;
-  DELIVERY_PIN_CODES: string;
+  ENVIRONMENT?: string;
+  STORE_TEST_NOW?: string;
 }
 
 type OrderRow = {
@@ -79,9 +81,11 @@ function configurationIssues(env: Env) {
   if (!env.PASSWORD_PEPPER || env.PASSWORD_PEPPER.length < 64) issues.push('PASSWORD_PEPPER');
   if (!env.ADMIN_EMAIL || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(env.ADMIN_EMAIL)) issues.push('ADMIN_EMAIL');
   if (!isStrongAdminPassword(env.ADMIN_PASSWORD)) issues.push('ADMIN_PASSWORD');
-  const pinValues = (env.DELIVERY_PIN_CODES || '').split(',').map(value => value.trim()).filter(Boolean);
-  if (!pinValues.length || pinValues.some(value => !/^\d{6}$/.test(value))) issues.push('DELIVERY_PIN_CODES');
   return issues;
+}
+function currentStoreStatus(env: Env) {
+  const testDate = env.ENVIRONMENT !== 'production' && env.STORE_TEST_NOW ? new Date(env.STORE_TEST_NOW) : undefined;
+  return getStoreStatus(testDate && !Number.isNaN(testDate.getTime()) ? testDate : new Date());
 }
 function passwordPepper(env: Env) {
   const value = env.PASSWORD_PEPPER;
@@ -257,7 +261,10 @@ async function handleApi(request: Request, env: Env, requestId: string) {
   if (request.method === 'GET' && path === '/api/health') {
     await env.DB.prepare('SELECT 1').first();
     const issues = configurationIssues(env);
-    return json({ ok: issues.length === 0, mode: 'cod', platform: 'cloudflare', configuration: issues.length ? 'incomplete' : 'ready', missing: issues }, issues.length ? 503 : 200, requestId);
+    return json({ ok: issues.length === 0, mode: 'cod', platform: 'cloudflare', configuration: issues.length ? 'incomplete' : 'ready', missing: issues, store: currentStoreStatus(env) }, issues.length ? 503 : 200, requestId);
+  }
+  if (request.method === 'GET' && path === '/api/store-status') {
+    return json({ store: currentStoreStatus(env) }, 200, requestId);
   }
   if (request.method === 'POST' && path === '/api/auth/register') {
     await enforceRateLimit(env, request, 'register', 5, 3600);
@@ -299,10 +306,8 @@ async function handleApi(request: Request, env: Env, requestId: string) {
     await enforceRateLimit(env, request, 'orders', 12, 900);
     const parsed = orderSchema.safeParse(await parseBody(request));
     if (!parsed.success) throw new ApiError(400, 'Please check your order details.', parsed.error.flatten());
-    const deliveryPinValues = (env.DELIVERY_PIN_CODES || '').split(',').map(value => value.trim()).filter(Boolean);
-    const deliveryPins = new Set(deliveryPinValues.filter(value => /^\d{6}$/.test(value)));
-    if (parsed.data.fulfilment.type === 'delivery' && deliveryPins.size === 0) throw new ApiError(503, 'Delivery ordering is temporarily unavailable. Please choose pickup.');
-    if (parsed.data.fulfilment.type === 'delivery' && !deliveryPins.has(parsed.data.fulfilment.zipCode)) throw new ApiError(400, 'Delivery is not available for this PIN code yet.');
+    const store = currentStoreStatus(env);
+    if (!store.open) throw new ApiError(409, `The kitchen is currently closed. ${store.nextChange}.`);
     const calculated = calculateOrder(parsed.data); const user = await sessionUser(request, env);
     const id = crypto.randomUUID(); const trackingToken = randomToken(24); const now = new Date().toISOString();
     const orderNumber = `TKK-${now.slice(2, 10).replace(/-/g, '')}-${randomToken(5).replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase()}`;

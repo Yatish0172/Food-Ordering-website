@@ -3,6 +3,7 @@ import { ScreenType, MenuItem, CartItem, OrderRecord, User } from './types';
 import { api } from './api';
 import { MENU_ITEMS } from './data/menuItems';
 import { menuItemUnitPrice } from './pricing';
+import type { StoreStatus } from './storeHours';
 import { TopNavBar } from './components/TopNavBar';
 import { HeroSection } from './components/HeroSection';
 import { LateNightHits } from './components/LateNightHits';
@@ -54,11 +55,20 @@ export default function App() {
   const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem('tkk-admin-token') || '');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null);
   const [toastNotification, setToastNotification] = useState({ show: false, itemName: '' });
 
   useEffect(() => localStorage.setItem('tkk-cart', JSON.stringify(cartItems)), [cartItems]);
   useEffect(() => {
     api.me().then(result => setCurrentUser(result.user)).catch(() => setCurrentUser(null)).finally(() => setAuthLoading(false));
+  }, []);
+  useEffect(() => {
+    let active = true;
+    const refreshStoreStatus = () => api.storeStatus().then(result => { if (active) setStoreStatus(result.store); }).catch(() => undefined);
+    refreshStoreStatus();
+    const timer = window.setInterval(refreshStoreStatus, 30_000);
+    window.addEventListener('focus', refreshStoreStatus);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refreshStoreStatus); };
   }, []);
 
   const cartCount = useMemo(() => cartItems.reduce((sum, item) => sum + item.quantity, 0), [cartItems]);
@@ -117,13 +127,14 @@ export default function App() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           currentUser={currentUser}
+          storeStatus={storeStatus}
         />
       )}
 
       <div className="flex-grow">
         {currentScreen === 'home' && (
           <main className="pt-24 pb-16 px-4 md:px-16 max-w-7xl mx-auto w-full">
-            <HeroSection onNavigate={handleNavigate} />
+            <HeroSection onNavigate={handleNavigate} storeStatus={storeStatus} />
             <LateNightHits onAddToCart={handleAddToCart} onNavigate={handleNavigate} />
           </main>
         )}
@@ -133,6 +144,7 @@ export default function App() {
             cartItems={cartItems}
             subtotal={subtotal}
             currentUser={currentUser}
+            storeStatus={storeStatus}
             onPlaceOrder={order => {
               setLatestOrder(order);
               setCartItems([]);
@@ -181,7 +193,7 @@ export default function App() {
       />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
       {!['admin', 'admin-login'].includes(currentScreen) && (
-        <Footer onNavigate={handleNavigate} onOpenAbout={() => setIsAboutOpen(true)} />
+        <Footer onNavigate={handleNavigate} onOpenAbout={() => setIsAboutOpen(true)} storeStatus={storeStatus} />
       )}
     </div>
   );

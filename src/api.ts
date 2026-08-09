@@ -1,4 +1,5 @@
 import type { CartItem, OrderRecord, PaymentMethod, User } from './types';
+import type { StoreStatus } from './storeHours';
 
 const API_ROOT = '/api';
 
@@ -32,7 +33,8 @@ export type CreateOrderResponse = {
 };
 
 export const api = {
-  health: () => request<{ ok: boolean; mode: 'cod' }>('/health'),
+  health: () => request<{ ok: boolean; mode: 'cod'; store: StoreStatus }>('/health'),
+  storeStatus: () => request<{ store: StoreStatus }>('/store-status'),
   register: (payload: AccountPayload) => request<{ user: User }>('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
   login: (email: string, password: string, rememberMe: boolean) => request<{ user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, rememberMe }) }),
   me: () => request<{ user: User | null }>('/auth/me'),

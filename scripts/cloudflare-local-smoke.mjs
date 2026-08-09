@@ -10,7 +10,8 @@ const vars = [
   'ADMIN_PASSWORD=CloudflareTest2026-Strong',
   'AUTH_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   'PASSWORD_PEPPER=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
-  'DELIVERY_PIN_CODES=248007',
+  'ENVIRONMENT=test',
+  'STORE_TEST_NOW=2026-08-10T06:30:00.000Z',
 ];
 
 function assert(condition, message) {
@@ -84,7 +85,7 @@ try {
   assert(activeOrders.response.status === 200 && !activeOrders.payload.orders.some(entry => entry.id === order.payload.order.id), 'completed orders leave active queue');
 
   const badPin = await api('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customer: { firstName: 'Smoke', lastName: 'Test', email, phone: '9999999999' }, fulfilment: { type: 'delivery', streetAddress: 'A complete test address', zipCode: '999999' }, paymentMethod: 'cod', items: [{ menuItemId: 'cutting-chai', quantity: 1 }] }) });
-  assert(badPin.response.status === 400, 'unserviceable delivery PIN rejected');
+  assert(badPin.response.status === 201, 'delivery PIN accepted without service-area restriction');
 } catch (error) {
   console.error(logs);
   throw error;

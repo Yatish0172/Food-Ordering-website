@@ -22,7 +22,7 @@ The application deliberately refuses to boot in production without an explicit D
 - DATA_DIR=/data
 - APP_URL=https://YOUR-GENERATED-DOMAIN.up.railway.app
 - TRUST_PROXY_HOPS=1
-- DELIVERY_PIN_CODES=comma-separated-6-digit-serviceable-pin-codes
+- Store hours are enforced from `src/storeHours.ts`; delivery PIN codes are accepted without a service-area allowlist.
 - ADMIN_EMAIL=your-private-admin-email
 - ADMIN_PASSWORD=a-unique-14-plus-character-password-with-upper-lower-number-symbol
 - AUTH_SECRET=a-random-secret-of-at-least-64-characters

@@ -16,9 +16,9 @@ Configure these in Cloudflare Workers & Pages > karaoke-kitchen > Settings > Var
 - `ADMIN_EMAIL`: private admin email
 - `ADMIN_PASSWORD`: unique 14+ character password with upper/lowercase, number, and symbol
 - `AUTH_SECRET`: at least 64 cryptographically random characters
-- `DELIVERY_PIN_CODES`: comma-separated six-digit serviceable PIN codes
 
-`APP_URL` is non-secret and is set in `wrangler.jsonc`. Use the temporary `workers.dev` origin during staging, then change it to the final HTTPS custom domain.
+
+`APP_URL` and `ENVIRONMENT` are non-secret and are set in `wrangler.jsonc`. Store hours are defined once in `src/storeHours.ts` in the `Asia/Kolkata` time zone. Delivery PIN codes are collected as address data but are not used as a service-area restriction.
 
 ## CLI deployment
 
@@ -34,12 +34,16 @@ Wrangler automatically provisions the D1 binding on the first deployment. The sc
 
 ## Git deployment
 
-In Cloudflare Workers & Pages, choose Import a repository and select `Yatish0172/Food-Ordering-website`.
+For the existing `karaoke-kitchen` Worker, open **Settings > Builds > Connect**, authorize the Cloudflare Workers & Pages GitHub App for only `Yatish0172/Food-Ordering-website`, and use:
 
-- Build command: `npm run build`
-- Deploy command: `npx wrangler deploy`
-- Root directory: `/`
+- Repository: `Yatish0172/Food-Ordering-website`
 - Production branch: `main`
+- Build command: `npm run check`
+- Deploy command: `npx wrangler deploy`
+- Non-production deploy command: `npx wrangler versions upload`
+- Root directory: `/`
+
+The Worker name must remain `karaoke-kitchen`, matching `wrangler.jsonc`. Cloudflare Workers Builds then deploys every successful push to `main` without storing an API token in GitHub.
 
 After the first deployment, add the required secrets and apply `migrations/0001_initial.sql` from the D1 console or run `npm run cf:migrate:remote` locally.
 

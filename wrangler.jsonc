@@ -14,6 +14,9 @@
     "database_name": "karaoke-kitchen",
     "migrations_dir": "migrations"
   }],
-  "vars": { "APP_URL": "https://www.karaokekitchen.co.in" },
+  "vars": {
+    "APP_URL": "https://www.karaokekitchen.co.in",
+    "ENVIRONMENT": "production"
+  },
   "observability": { "enabled": true }
 }
