@@ -1,4 +1,4 @@
-﻿# Cloudflare Workers + D1 deployment
+# Cloudflare Workers + D1 deployment
 
 This is the primary production target. The React/Vite storefront is served as Worker static assets and `/api/*` runs in `worker/index.ts`. Orders, accounts, sessions, and rate limits persist in D1.
 
