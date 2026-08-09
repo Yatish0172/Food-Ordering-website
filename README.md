@@ -14,6 +14,12 @@ Local SQLite data is stored in data/karaoke-kitchen.sqlite.
 
 ## Production
 
+The primary production target is Cloudflare Workers + D1. It keeps the storefront, API, accounts, orders, sessions, and admin dashboard on the Cloudflare free tier. See `CLOUDFLARE.md` for setup, secrets, migrations, Git deployment, and domain instructions.
+
+The previous Railway/SQLite deployment remains available as a fallback through `npm run build:railway` and `RAILWAY.md`.
+
+## Legacy Railway production
+
 npm run build creates the frontend in dist and the bundled Express server in dist-server. npm start runs one service that serves both the website and /api.
 
 This release accepts Cash on Delivery only. Unsupported payment methods are rejected by the API. Customer sessions use opaque server-side tokens in HttpOnly, SameSite=Lax cookies; production cookies are Secure. The application also enforces a Content Security Policy, same-origin writes, request-size limits, endpoint-specific rate limits, server-authoritative pricing, and controlled JSON errors.
