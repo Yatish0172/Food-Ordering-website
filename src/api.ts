@@ -41,7 +41,7 @@ export const api = {
   createOrder: (payload: CheckoutPayload) => request<CreateOrderResponse>('/orders', { method: 'POST', body: JSON.stringify(payload) }),
   getOrder: (id: string, token: string) => request<{ order: OrderRecord }>('/orders/' + id + '?token=' + encodeURIComponent(token)),
   adminLogin: (email: string, password: string) => request<{ token: string; admin: { email: string } }>('/admin/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  adminOrders: (token: string, status = 'all') => request<{ orders: OrderRecord[] }>('/admin/orders?status=' + status, { headers: { Authorization: 'Bearer ' + token } }),
+  adminOrders: (token: string, status = 'active', page = 1) => request<{ orders: OrderRecord[]; pagination: { page: number; limit: number; total: number; pages: number } }>('/admin/orders?status=' + encodeURIComponent(status) + '&page=' + page, { headers: { Authorization: 'Bearer ' + token } }),
   adminSummary: (token: string) => request<{ today: { count: number; revenue: number }; byStatus: Array<{ status: string; count: number; revenue: number }> }>('/admin/summary', { headers: { Authorization: 'Bearer ' + token } }),
   updateOrderStatus: (token: string, id: string, status: string) => request<{ order: OrderRecord }>('/admin/orders/' + id + '/status', { method: 'PATCH', headers: { Authorization: 'Bearer ' + token }, body: JSON.stringify({ status }) }),
 };

@@ -215,6 +215,20 @@ try {
   assert.equal(result.body.order.status, 'cooking');
   pass('admin status update');
 
+  result = await call('/api/admin/orders/' + order.id + '/status', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ status: 'completed' }),
+  });
+  assert.equal(result.response.status, 200);
+  result = await call('/api/admin/orders?status=history&page=1', { headers: { Authorization: 'Bearer ' + token } });
+  assert.equal(result.response.status, 200);
+  assert.equal(result.body.orders.some(entry => entry.id === order.id), true);
+  assert.equal(result.body.pagination.total >= 1, true);
+  result = await call('/api/admin/orders?status=active&page=1', { headers: { Authorization: 'Bearer ' + token } });
+  assert.equal(result.body.orders.some(entry => entry.id === order.id), false);
+  pass('completed orders retained in paginated history');
+
   for (let attempt = 0; attempt < 9; attempt += 1) {
     result = await call('/api/admin/login', {
       method: 'POST',

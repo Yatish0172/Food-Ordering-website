@@ -492,13 +492,31 @@ app.post('/api/admin/login', loginLimiter, async (req, res) => {
 });
 
 app.get('/api/admin/orders', requireAdmin, (req, res) => {
-  const status = String(req.query.status || 'all');
-  const rows = status === 'all'
-    ? db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 250').all()
-    : db.prepare('SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC LIMIT 250').all(status);
-  res.json({ orders: (rows as OrderRow[]).map(row => mapOrder(row, true)) });
+  const status = String(req.query.status || 'active');
+  const requestedPage = Number(req.query.page || 1);
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 100_000) : 1;
+  const limit = 50;
+  const offset = (page - 1) * limit;
+  let rows: unknown[];
+  let count: { count: number };
+  if (status === 'all') {
+    rows = db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit, offset);
+    count = db.prepare('SELECT COUNT(*) AS count FROM orders').get() as { count: number };
+  } else if (status === 'active') {
+    rows = db.prepare("SELECT * FROM orders WHERE status IN ('received', 'confirmed', 'cooking', 'ready') ORDER BY created_at DESC LIMIT ? OFFSET ?").all(limit, offset);
+    count = db.prepare("SELECT COUNT(*) AS count FROM orders WHERE status IN ('received', 'confirmed', 'cooking', 'ready')").get() as { count: number };
+  } else if (status === 'history') {
+    rows = db.prepare("SELECT * FROM orders WHERE status IN ('completed', 'cancelled') ORDER BY updated_at DESC LIMIT ? OFFSET ?").all(limit, offset);
+    count = db.prepare("SELECT COUNT(*) AS count FROM orders WHERE status IN ('completed', 'cancelled')").get() as { count: number };
+  } else {
+    const parsedStatus = z.enum(['received', 'confirmed', 'cooking', 'ready', 'completed', 'cancelled']).safeParse(status);
+    if (!parsedStatus.success) return res.status(400).json({ error: 'Invalid order status filter.' });
+    rows = db.prepare('SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(parsedStatus.data, limit, offset);
+    count = db.prepare('SELECT COUNT(*) AS count FROM orders WHERE status = ?').get(parsedStatus.data) as { count: number };
+  }
+  const total = Number(count.count || 0);
+  res.json({ orders: (rows as OrderRow[]).map(row => mapOrder(row, true)), pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) } });
 });
-
 app.patch('/api/admin/orders/:id/status', requireAdmin, (req, res) => {
   const parsed = z.object({ status: z.enum(['received', 'confirmed', 'cooking', 'ready', 'completed', 'cancelled']) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid order status.' });

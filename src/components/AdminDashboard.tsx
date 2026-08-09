@@ -34,7 +34,11 @@ function playOrderTone() {
 export const AdminDashboard = ({ token, onLogout, onBack }: { token: string; onLogout: () => void; onBack: () => void }) => {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [summary, setSummary] = useState({ count: 0, revenue: 0 });
-  const [filter, setFilter] = useState('all');
+  const [byStatus, setByStatus] = useState<Array<{ status: string; count: number }>>([]);
+  const [section, setSection] = useState<'active' | 'history'>('active');
+  const [filter, setFilter] = useState('active');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 1 });
   const [selected, setSelected] = useState<OrderRecord | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -45,7 +49,7 @@ export const AdminDashboard = ({ token, onLogout, onBack }: { token: string; onL
   const refresh = useCallback(async () => {
     try {
       const [orderData, summaryData, receivedData] = await Promise.all([
-        api.adminOrders(token, filter),
+        api.adminOrders(token, filter, page),
         api.adminSummary(token),
         api.adminOrders(token, 'received'),
       ]);
@@ -57,20 +61,26 @@ export const AdminDashboard = ({ token, onLogout, onBack }: { token: string; onL
         }
       }
       knownReceivedIds.current = new Set(receivedData.orders.map(order => order.id));
-      setOrders(orderData.orders); setSummary(summaryData.today); setError('');
+      if (orderData.pagination.page > orderData.pagination.pages) { setPage(orderData.pagination.pages); return; }
+      setOrders(orderData.orders); setPagination(orderData.pagination); setSummary(summaryData.today); setByStatus(summaryData.byStatus); setError('');
       if (selected) setSelected(orderData.orders.find(order => order.id === selected.id) || null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not load orders.';
       setError(message);
       if (/session|auth/i.test(message)) onLogout();
     } finally { setLoading(false); }
-  }, [token, filter, onLogout, selected?.id, soundEnabled]);
+  }, [token, filter, page, onLogout, selected?.id, soundEnabled]);
 
   useEffect(() => { refresh(); const timer = window.setInterval(refresh, 15000); return () => clearInterval(timer); }, [refresh]);
 
-  const active = useMemo(() => orders.filter(order => !['completed','cancelled'].includes(order.status)).length, [orders]);
+  const active = useMemo(() => byStatus.filter(entry => !['completed', 'cancelled'].includes(entry.status)).reduce((sum, entry) => sum + Number(entry.count), 0), [byStatus]);
+  const filterOptions = section === 'active' ? ['active', 'received', 'confirmed', 'cooking', 'ready'] : ['history', 'completed', 'cancelled'];
+  const openSection = (next: 'active' | 'history') => {
+    setSection(next); setFilter(next); setPage(1); setSelected(null); setLoading(true);
+  };
+  const chooseFilter = (status: string) => { setFilter(status); setPage(1); setSelected(null); setLoading(true); };
   const updateStatus = async (order: OrderRecord, status: OrderStatus) => {
-    try { const result = await api.updateOrderStatus(token, order.id, status); setOrders(current => current.map(entry => entry.id === order.id ? result.order : entry)); setSelected(result.order); }
+    try { await api.updateOrderStatus(token, order.id, status); setSelected(null); setLoading(true); await refresh(); }
     catch (err) { setError(err instanceof Error ? err.message : 'Could not update order.'); }
   };
 
@@ -88,24 +98,33 @@ export const AdminDashboard = ({ token, onLogout, onBack }: { token: string; onL
           <Metric label="TODAY'S VALUE" value={`₹${summary.revenue}`} icon="payments" />
           <Metric label="ACTIVE QUEUE" value={active} icon="skillet" />
         </section>
+        <div className="grid sm:grid-cols-2 gap-3 mb-5" role="tablist" aria-label="Admin order sections">
+          <button type="button" role="tab" aria-selected={section === 'active'} onClick={() => openSection('active')} className={`rounded-2xl border p-4 text-left ${section === 'active' ? 'border-[#00dbe9] bg-[#00dbe9]/10 text-[#00dbe9]' : 'border-white/10 bg-[#191f2f]'}`}><span className="material-symbols-outlined align-middle mr-2">skillet</span><strong>ACTIVE ORDERS</strong><small className="block mt-1 text-current/70">Live kitchen queue</small></button>
+          <button type="button" role="tab" aria-selected={section === 'history'} onClick={() => openSection('history')} className={`rounded-2xl border p-4 text-left ${section === 'history' ? 'border-[#ffb2ba] bg-[#ffb2ba]/10 text-[#ffb2ba]' : 'border-white/10 bg-[#191f2f]'}`}><span className="material-symbols-outlined align-middle mr-2">history</span><strong>ORDER HISTORY</strong><small className="block mt-1 text-current/70">All completed and cancelled orders</small></button>
+        </div>
         <div className="flex gap-2 overflow-x-auto pb-3 mb-5">
-          {['all', ...statusOptions].map(status => <button key={status} onClick={()=>setFilter(status)} className={`shrink-0 px-4 py-2 rounded-full text-xs font-['Space_Mono'] font-bold uppercase ${filter===status?'bg-[#00dbe9] text-[#002022]':'bg-[#191f2f] border border-white/10'}`}>{status.replace('_',' ')}</button>)}
+          {filterOptions.map(status => <button key={status} onClick={() => chooseFilter(status)} className={`shrink-0 px-4 py-2 rounded-full text-xs font-['Space_Mono'] font-bold uppercase ${filter === status ? 'bg-[#00dbe9] text-[#002022]' : 'bg-[#191f2f] border border-white/10'}`}>{status === 'active' ? 'all active' : status === 'history' ? 'all history' : status.replace('_', ' ')}</button>)}
         </div>
         {error && <div className="border border-red-400/40 bg-red-400/10 text-red-200 rounded-xl p-4 mb-5">{error}</div>}
         <div className="grid xl:grid-cols-[1fr_430px] gap-6">
           <section className="glass-panel rounded-2xl border border-white/10 overflow-hidden">
-            <div className="p-5 border-b border-white/10 flex justify-between"><h2 className="font-bold text-xl">Incoming orders</h2><button onClick={refresh} className="text-[#00dbe9] text-xs">REFRESH</button></div>
-            {loading ? <p className="p-8 text-center text-[#e7bcbf]">Loading orders…</p> : orders.length === 0 ? <p className="p-8 text-center text-[#e7bcbf]">No orders in this queue yet.</p> : (
+            <div className="p-5 border-b border-white/10 flex justify-between gap-4"><div><h2 className="font-bold text-xl">{section === 'history' ? 'Order history' : 'Active orders'}</h2><small className="text-[#e7bcbf]">{pagination.total} order{pagination.total === 1 ? '' : 's'}</small></div><button onClick={refresh} className="text-[#00dbe9] text-xs">REFRESH</button></div>
+            {loading ? <p className="p-8 text-center text-[#e7bcbf]">Loading orders…</p> : orders.length === 0 ? <p className="p-8 text-center text-[#e7bcbf]">No orders in this section yet.</p> : (
               <div className="divide-y divide-white/10">
                 {orders.map(order => (
                   <button key={order.id} onClick={()=>setSelected(order)} className="w-full p-5 text-left hover:bg-white/5 grid md:grid-cols-[1.2fr_.8fr_.6fr] gap-3 items-center">
-                    <div><strong className="text-[#dce2f8]">{order.orderNumber}</strong><small className="block text-[#e7bcbf]">{order.customer?.firstName} {order.customer?.lastName} · {new Date(order.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</small></div>
+                    <div><strong className="text-[#dce2f8]">{order.orderNumber}</strong><small className="block text-[#e7bcbf]">{order.customer?.firstName} {order.customer?.lastName} · {new Date(order.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</small></div>
                     <div><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${badge[order.status] || badge.completed}`}>{order.status.replace('_',' ')}</span><small className="block mt-2 text-[#e7bcbf] uppercase">{order.paymentMethod} · {order.paymentStatus}</small></div>
                     <strong className="md:text-right text-[#00dbe9] text-xl">₹{order.total}</strong>
                   </button>
                 ))}
               </div>
             )}
+            <div className="border-t border-white/10 p-4 flex items-center justify-between gap-4">
+              <button type="button" disabled={pagination.page <= 1} onClick={() => { setPage(current => Math.max(1, current - 1)); setSelected(null); setLoading(true); }} className="rounded-full border border-white/15 px-4 py-2 text-xs font-bold disabled:opacity-40">PREVIOUS</button>
+              <span className="text-xs text-[#e7bcbf]">Page {pagination.page} of {pagination.pages}</span>
+              <button type="button" disabled={pagination.page >= pagination.pages} onClick={() => { setPage(current => Math.min(pagination.pages, current + 1)); setSelected(null); setLoading(true); }} className="rounded-full border border-white/15 px-4 py-2 text-xs font-bold disabled:opacity-40">NEXT</button>
+            </div>
           </section>
           <aside className="glass-panel rounded-2xl border border-white/10 p-6 h-fit xl:sticky xl:top-28">
             {!selected ? <div className="py-16 text-center text-[#e7bcbf]"><span className="material-symbols-outlined text-5xl opacity-40">touch_app</span><p>Select an order to see full details.</p></div> : (

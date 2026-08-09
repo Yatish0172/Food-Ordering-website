@@ -76,6 +76,12 @@ try {
   assert(admin.response.status === 200 && admin.payload.token, 'admin login');
   const updated = await api(`/api/admin/orders/${order.payload.order.id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admin.payload.token}` }, body: JSON.stringify({ status: 'confirmed' }) });
   assert(updated.response.status === 200 && updated.payload.order.status === 'confirmed', 'admin status update');
+  const completed = await api(`/api/admin/orders/${order.payload.order.id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admin.payload.token}` }, body: JSON.stringify({ status: 'completed' }) });
+  assert(completed.response.status === 200 && completed.payload.order.status === 'completed', 'completed order archived');
+  const history = await api('/api/admin/orders?status=history&page=1', { headers: { Authorization: `Bearer ${admin.payload.token}` } });
+  assert(history.response.status === 200 && history.payload.orders.some(entry => entry.id === order.payload.order.id) && history.payload.pagination.total >= 1, 'paginated order history retains completed orders');
+  const activeOrders = await api('/api/admin/orders?status=active&page=1', { headers: { Authorization: `Bearer ${admin.payload.token}` } });
+  assert(activeOrders.response.status === 200 && !activeOrders.payload.orders.some(entry => entry.id === order.payload.order.id), 'completed orders leave active queue');
 
   const badPin = await api('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customer: { firstName: 'Smoke', lastName: 'Test', email, phone: '9999999999' }, fulfilment: { type: 'delivery', streetAddress: 'A complete test address', zipCode: '999999' }, paymentMethod: 'cod', items: [{ menuItemId: 'cutting-chai', quantity: 1 }] }) });
   assert(badPin.response.status === 400, 'unserviceable delivery PIN rejected');

@@ -330,9 +330,38 @@ async function handleApi(request: Request, env: Env, requestId: string) {
   }
   if (request.method === 'GET' && path === '/api/admin/orders') {
     await requireAdmin(request, env);
-    const status = url.searchParams.get('status') || 'all';
-    const result = status === 'all' ? await env.DB.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT 250').all<OrderRow>() : await env.DB.prepare('SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC LIMIT 250').bind(status).all<OrderRow>();
-    return json({ orders: result.results.map(row => mapOrder(row, true)) }, 200, requestId);
+    const status = url.searchParams.get('status') || 'active';
+    const requestedPage = Number(url.searchParams.get('page') || '1');
+    const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 100_000) : 1;
+    const limit = 50;
+    const offset = (page - 1) * limit;
+    let result: D1Result<OrderRow>;
+    let count: { count: number } | null;
+    if (status === 'all') {
+      [result, count] = await Promise.all([
+        env.DB.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(limit, offset).all<OrderRow>(),
+        env.DB.prepare('SELECT COUNT(*) AS count FROM orders').first<{ count: number }>(),
+      ]);
+    } else if (status === 'active') {
+      [result, count] = await Promise.all([
+        env.DB.prepare("SELECT * FROM orders WHERE status IN ('received', 'confirmed', 'cooking', 'ready') ORDER BY created_at DESC LIMIT ? OFFSET ?").bind(limit, offset).all<OrderRow>(),
+        env.DB.prepare("SELECT COUNT(*) AS count FROM orders WHERE status IN ('received', 'confirmed', 'cooking', 'ready')").first<{ count: number }>(),
+      ]);
+    } else if (status === 'history') {
+      [result, count] = await Promise.all([
+        env.DB.prepare("SELECT * FROM orders WHERE status IN ('completed', 'cancelled') ORDER BY updated_at DESC LIMIT ? OFFSET ?").bind(limit, offset).all<OrderRow>(),
+        env.DB.prepare("SELECT COUNT(*) AS count FROM orders WHERE status IN ('completed', 'cancelled')").first<{ count: number }>(),
+      ]);
+    } else {
+      const parsedStatus = statusSchema.safeParse(status);
+      if (!parsedStatus.success) throw new ApiError(400, 'Invalid order status filter.');
+      [result, count] = await Promise.all([
+        env.DB.prepare('SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(parsedStatus.data, limit, offset).all<OrderRow>(),
+        env.DB.prepare('SELECT COUNT(*) AS count FROM orders WHERE status = ?').bind(parsedStatus.data).first<{ count: number }>(),
+      ]);
+    }
+    const total = Number(count?.count || 0);
+    return json({ orders: result.results.map(row => mapOrder(row, true)), pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) } }, 200, requestId);
   }
   const adminStatusMatch = path.match(/^\/api\/admin\/orders\/([^/]+)\/status$/);
   if (request.method === 'PATCH' && adminStatusMatch) {
