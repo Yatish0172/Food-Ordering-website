@@ -120,21 +120,22 @@ function safeEqual(left: string, right: string) {
   for (let index = 0; index < length; index++) diff |= (a[index % Math.max(a.length, 1)] || 0) ^ (b[index % Math.max(b.length, 1)] || 0);
   return diff === 0;
 }
-async function hashPassword(password: string) {
-  const iterations = 120_000;
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
-  const derived = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, key, 256);
-  return `pbkdf2$${iterations}$${bytesToBase64Url(salt)}$${bytesToBase64Url(new Uint8Array(derived))}`;
+async function hashPassword(password: string, secret: string) {
+  if (!secret || secret.length < 64) throw new ApiError(503, 'Account service is not configured yet.');
+  const salt = randomToken(16);
+  return `hmac-sha256$${salt}$${await hmac(`${salt}\0${password}`, secret)}`;
 }
-async function verifyPassword(password: string, stored: string) {
-  const [kind, count, saltValue, expected] = stored.split('$');
-  if (kind !== 'pbkdf2' || !count || !saltValue || !expected) return false;
-  const iterations = Number(count);
+async function verifyPassword(password: string, stored: string, secret: string) {
+  const [kind, first, second, third] = stored.split('$');
+  if (kind === 'hmac-sha256' && first && second && secret?.length >= 64) {
+    return safeEqual(await hmac(`${first}\0${password}`, secret), second);
+  }
+  if (kind !== 'pbkdf2' || !first || !second || !third) return false;
+  const iterations = Number(first);
   if (!Number.isInteger(iterations) || iterations < 100_000 || iterations > 1_000_000) return false;
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
-  const derived = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: base64UrlToBytes(saltValue), iterations }, key, 256);
-  return safeEqual(bytesToBase64Url(new Uint8Array(derived)), expected);
+  const derived = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: base64UrlToBytes(second), iterations }, key, 256);
+  return safeEqual(bytesToBase64Url(new Uint8Array(derived)), third);
 }
 
 async function parseBody(request: Request) {
@@ -241,7 +242,7 @@ async function handleApi(request: Request, env: Env, requestId: string) {
     if (existing) throw new ApiError(409, 'An account with this email already exists.');
     const id = crypto.randomUUID(); const now = new Date().toISOString();
     await env.DB.prepare(`INSERT INTO users (id, email, password_hash, first_name, last_name, phone, street_address, apt_suite, zip_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, parsed.data.email, await hashPassword(parsed.data.password), parsed.data.firstName, parsed.data.lastName, parsed.data.phone, parsed.data.streetAddress, parsed.data.aptSuite, parsed.data.zipCode, now, now).run();
+      .bind(id, parsed.data.email, await hashPassword(parsed.data.password, env.AUTH_SECRET), parsed.data.firstName, parsed.data.lastName, parsed.data.phone, parsed.data.streetAddress, parsed.data.aptSuite, parsed.data.zipCode, now, now).run();
     const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>();
     return json({ user: publicUser(user!) }, 201, requestId, { 'Set-Cookie': await issueCustomerSession(env, id, parsed.data.rememberMe) });
   }
@@ -250,7 +251,7 @@ async function handleApi(request: Request, env: Env, requestId: string) {
     const parsed = z.object({ email: z.string().trim().email().max(120), password: z.string().min(1).max(72), rememberMe: z.boolean().optional().default(true) }).safeParse(await parseBody(request));
     if (!parsed.success) throw new ApiError(400, 'Enter a valid email and password.');
     const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(parsed.data.email.toLowerCase()).first<UserRow>();
-    if (!user || !(await verifyPassword(parsed.data.password, user.password_hash))) throw new ApiError(401, 'Invalid email or password.');
+    if (!user || !(await verifyPassword(parsed.data.password, user.password_hash, env.AUTH_SECRET))) throw new ApiError(401, 'Invalid email or password.');
     await env.DB.prepare('DELETE FROM customer_sessions WHERE expires_at <= ?').bind(new Date().toISOString()).run();
     return json({ user: publicUser(user) }, 200, requestId, { 'Set-Cookie': await issueCustomerSession(env, user.id, parsed.data.rememberMe) });
   }
