@@ -6,14 +6,12 @@ import { CartItem, OrderRecord, ScreenType, User } from '../types';
 interface Props {
   cartItems: CartItem[];
   subtotal: number;
-  deliveryFee: number;
-  taxes: number;
   currentUser: User | null;
   onPlaceOrder: (order: OrderRecord) => void;
   onNavigate: (screen: ScreenType) => void;
 }
 
-export const CheckoutView = ({ cartItems, subtotal, deliveryFee, taxes, currentUser, onPlaceOrder, onNavigate }: Props) => {
+export const CheckoutView = ({ cartItems, subtotal, currentUser, onPlaceOrder, onNavigate }: Props) => {
   const [form, setForm] = useState({
     firstName: currentUser?.firstName || '',
     lastName: currentUser?.lastName || '',
@@ -28,7 +26,7 @@ export const CheckoutView = ({ cartItems, subtotal, deliveryFee, taxes, currentU
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const payableTotal = subtotal + taxes + (isDelivery ? deliveryFee : 0);
+  const payableTotal = subtotal;
   const update = (key: keyof typeof form) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(current => ({ ...current, [key]: event.target.value }));
 
@@ -98,7 +96,7 @@ export const CheckoutView = ({ cartItems, subtotal, deliveryFee, taxes, currentU
               {([true, false] as const).map(value => (
                 <button key={String(value)} type="button" aria-pressed={isDelivery === value} onClick={() => setIsDelivery(value)}
                   className={'rounded-xl border px-4 py-4 font-[Space_Mono] text-sm font-bold ' + (isDelivery === value ? 'bg-[#00dbe9] text-[#002022] border-[#00dbe9]' : 'border-white/15 text-[#dce2f8]')}>
-                  {value ? 'DELIVERY · ₹30' : 'KITCHEN PICKUP'}
+                  {value ? 'DELIVERY' : 'KITCHEN PICKUP'}
                 </button>
               ))}
             </div>
@@ -144,8 +142,6 @@ export const CheckoutView = ({ cartItems, subtotal, deliveryFee, taxes, currentU
           </div>
           <dl className="mt-5 space-y-2 font-['Space_Mono'] text-sm">
             <div className="flex justify-between"><dt>Subtotal</dt><dd>₹{subtotal}</dd></div>
-            <div className="flex justify-between"><dt>Delivery</dt><dd>₹{isDelivery ? deliveryFee : 0}</dd></div>
-            <div className="flex justify-between"><dt>Packing</dt><dd>₹{taxes}</dd></div>
             <div className="flex justify-between text-xl font-bold text-[#00dbe9] pt-3 border-t border-white/10"><dt>Total</dt><dd>₹{payableTotal}</dd></div>
           </dl>
         </aside>

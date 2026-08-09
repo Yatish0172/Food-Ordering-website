@@ -242,9 +242,9 @@ function calculateOrder(input: z.infer<typeof orderSchema>) {
     return { menuItemId: menuItem.id, name: menuItem.name, isNonVeg: Boolean(menuItem.isNonVeg), selectedOption: requested.selectedOption, quantity: requested.quantity, unitPrice, lineTotal: unitPrice * requested.quantity };
   });
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const deliveryFee = input.fulfilment.type === 'delivery' ? 30 : 0;
-  const packingFee = 20;
-  const total = subtotal + deliveryFee + packingFee;
+  const deliveryFee = 0;
+  const packingFee = 0;
+  const total = subtotal;
   if (total > 25_000) throw new ApiError(400, 'Orders above ₹25,000 must be placed directly with the kitchen.');
   return { items, subtotal, deliveryFee, packingFee, total };
 }

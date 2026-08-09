@@ -66,6 +66,7 @@ try {
 
   const order = await api('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify({ customer: { firstName: 'Smoke', lastName: 'Test', email, phone: '9999999999' }, fulfilment: { type: 'pickup' }, paymentMethod: 'cod', items: [{ menuItemId: 'cutting-chai', quantity: 2 }] }) });
   assert(order.response.status === 201 && order.payload.order.trackingToken, 'COD order created');
+  assert(order.payload.order.deliveryFee === 0 && order.payload.order.packingFee === 0 && order.payload.order.total === order.payload.order.subtotal, 'delivery and packing charges stay zero');
 
   const tracking = await api(`/api/orders/${order.payload.order.id}?token=${encodeURIComponent(order.payload.order.trackingToken)}`);
   assert(tracking.response.status === 200 && tracking.payload.order.id === order.payload.order.id, 'private tracking works');

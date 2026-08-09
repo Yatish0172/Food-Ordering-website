@@ -178,7 +178,9 @@ try {
   });
   assert.equal(result.response.status, 201);
   assert.equal(result.body.order.subtotal, 119);
-  assert.equal(result.body.order.total, 139);
+  assert.equal(result.body.order.deliveryFee, 0);
+  assert.equal(result.body.order.packingFee, 0);
+  assert.equal(result.body.order.total, 119);
   assert.equal(result.body.order.items[0].unitPrice, 119);
   const order = result.body.order;
   pass('custom option priced server-side');

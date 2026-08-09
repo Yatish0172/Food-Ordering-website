@@ -69,8 +69,6 @@ export default function App() {
     ),
     [cartItems],
   );
-  const deliveryFee = 30;
-  const taxes = 20;
 
   const handleAddToCart = (item: MenuItem, selectedOption?: string) => {
     setCartItems(prev => {
@@ -134,8 +132,6 @@ export default function App() {
           <CheckoutView
             cartItems={cartItems}
             subtotal={subtotal}
-            deliveryFee={deliveryFee}
-            taxes={taxes}
             currentUser={currentUser}
             onPlaceOrder={order => {
               setLatestOrder(order);

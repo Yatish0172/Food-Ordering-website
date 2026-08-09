@@ -281,9 +281,9 @@ function calculateOrder(input: z.infer<typeof orderSchema>) {
     };
   });
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const deliveryFee = input.fulfilment.type === 'delivery' ? 30 : 0;
-  const packingFee = 20;
-  const total = subtotal + deliveryFee + packingFee;
+  const deliveryFee = 0;
+  const packingFee = 0;
+  const total = subtotal;
   if (total > 25_000) throw new OrderInputError('Orders above ₹25,000 must be placed directly with the kitchen.');
   return { items, subtotal, deliveryFee, packingFee, total };
 }
