@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { MENU_ITEMS } from '../src/data/menuItems';
 import { optionSurcharge } from '../src/pricing';
-import { getStoreStatus } from '../src/storeHours';
+import { getBusinessDayRange, getStoreStatus } from '../src/storeHours';
 
 interface Env {
   DB: D1Database;
@@ -81,6 +81,12 @@ function configurationIssues(env: Env) {
   if (!env.PASSWORD_PEPPER || env.PASSWORD_PEPPER.length < 64) issues.push('PASSWORD_PEPPER');
   if (!env.ADMIN_EMAIL || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(env.ADMIN_EMAIL)) issues.push('ADMIN_EMAIL');
   if (!isStrongAdminPassword(env.ADMIN_PASSWORD)) issues.push('ADMIN_PASSWORD');
+  try {
+    const protocol = new URL(env.APP_URL).protocol;
+    if (!['http:', 'https:'].includes(protocol) || (env.ENVIRONMENT === 'production' && protocol !== 'https:')) issues.push('APP_URL');
+  } catch {
+    issues.push('APP_URL');
+  }
   return issues;
 }
 function currentStoreStatus(env: Env) {
@@ -259,7 +265,12 @@ async function handleApi(request: Request, env: Env, requestId: string) {
   const path = url.pathname;
 
   if (request.method === 'GET' && path === '/api/health') {
-    await env.DB.prepare('SELECT 1').first();
+    await env.DB.batch([
+      env.DB.prepare('SELECT 1 FROM users LIMIT 1'),
+      env.DB.prepare('SELECT 1 FROM orders LIMIT 1'),
+      env.DB.prepare('SELECT 1 FROM customer_sessions LIMIT 1'),
+      env.DB.prepare('SELECT 1 FROM rate_limits LIMIT 1'),
+    ]);
     const issues = configurationIssues(env);
     return json({ ok: issues.length === 0, mode: 'cod', platform: 'cloudflare', configuration: issues.length ? 'incomplete' : 'ready', missing: issues, store: currentStoreStatus(env) }, issues.length ? 503 : 200, requestId);
   }
@@ -374,16 +385,21 @@ async function handleApi(request: Request, env: Env, requestId: string) {
     const parsed = z.object({ status: statusSchema }).safeParse(await parseBody(request));
     if (!parsed.success) throw new ApiError(400, 'Invalid order status.');
     const id = decodeURIComponent(adminStatusMatch[1]); const now = new Date().toISOString();
-    const result = await env.DB.prepare('UPDATE orders SET status = ?, updated_at = ? WHERE id = ?').bind(parsed.data.status, now, id).run();
+    const result = await env.DB.prepare(`UPDATE orders
+      SET status = ?,
+          payment_status = CASE WHEN ? = 'completed' THEN 'cod_collected' WHEN ? = 'cancelled' THEN 'cancelled' ELSE 'cod_pending' END,
+          updated_at = ?
+      WHERE id = ?`).bind(parsed.data.status, parsed.data.status, parsed.data.status, now, id).run();
     if (!result.meta.changes) throw new ApiError(404, 'Order not found.');
     const row = await env.DB.prepare('SELECT * FROM orders WHERE id = ?').bind(id).first<OrderRow>();
     return json({ order: mapOrder(row!, true) }, 200, requestId);
   }
   if (request.method === 'GET' && path === '/api/admin/summary') {
     await requireAdmin(request, env);
+    const todayRange = getBusinessDayRange();
     const [statuses, today] = await Promise.all([
       env.DB.prepare('SELECT status, COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue FROM orders GROUP BY status').all<{ status: string; count: number; revenue: number }>(),
-      env.DB.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue FROM orders WHERE substr(created_at, 1, 10) = ? AND status != 'cancelled'`).bind(new Date().toISOString().slice(0, 10)).first<{ count: number; revenue: number }>(),
+      env.DB.prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue FROM orders WHERE created_at >= ? AND created_at < ? AND status != 'cancelled'`).bind(todayRange.start, todayRange.end).first<{ count: number; revenue: number }>(),
     ]);
     return json({ byStatus: statuses.results, today }, 200, requestId);
   }

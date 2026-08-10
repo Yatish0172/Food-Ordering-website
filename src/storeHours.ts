@@ -5,7 +5,10 @@ export const BUSINESS = {
   phoneUrl: 'tel:+919084723651',
   mapUrl: 'https://www.google.com/maps/search/?api=1&query=30.3963709%2C77.9689023',
   timeZone: 'Asia/Kolkata',
+  utcOffsetMinutes: 330,
 } as const;
+
+export const WEEKLY_HOURS_LABEL = 'Daily, 11:30 AM–2:00 PM and 6:30 PM–9:00 PM';
 
 export const STORE_HOURS = {
   sun: [[690, 840], [1110, 1260]],
@@ -30,6 +33,24 @@ export type StoreStatus = {
   nextChange: string;
   message: string;
 };
+
+export function getBusinessDayRange(at = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BUSINESS.timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(at);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  const year = Number(values.year);
+  const month = Number(values.month);
+  const day = Number(values.day);
+  const startMs = Date.UTC(year, month - 1, day) - BUSINESS.utcOffsetMinutes * 60_000;
+  return {
+    start: new Date(startMs).toISOString(),
+    end: new Date(startMs + 24 * 60 * 60 * 1000).toISOString(),
+  };
+}
 
 function localClock(at: Date) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -67,7 +88,7 @@ export function getStoreStatus(at = new Date()): StoreStatus {
       state: 'open',
       timeZone: BUSINESS.timeZone,
       todayHours: hoursLabel(dayIndex),
-      weeklyHours: 'Daily, 11:30 AM–2:00 PM and 6:30 PM–9:00 PM',
+      weeklyHours: WEEKLY_HOURS_LABEL,
       nextChange,
       message: `Kitchen open · ${nextChange}`,
     };
@@ -84,7 +105,7 @@ export function getStoreStatus(at = new Date()): StoreStatus {
         state: 'closed',
         timeZone: BUSINESS.timeZone,
         todayHours: hoursLabel(dayIndex),
-        weeklyHours: 'Daily, 11:30 AM–2:00 PM and 6:30 PM–9:00 PM',
+        weeklyHours: WEEKLY_HOURS_LABEL,
         nextChange,
         message: `Kitchen closed · ${nextChange}`,
       };
@@ -96,7 +117,7 @@ export function getStoreStatus(at = new Date()): StoreStatus {
     state: 'closed',
     timeZone: BUSINESS.timeZone,
     todayHours: hoursLabel(dayIndex),
-    weeklyHours: 'Daily, 11:30 AM–2:00 PM and 6:30 PM–9:00 PM',
+    weeklyHours: WEEKLY_HOURS_LABEL,
     nextChange: 'Opening time unavailable',
     message: 'Kitchen closed',
   };

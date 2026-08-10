@@ -34,7 +34,7 @@ export interface CartItem {
 }
 
 export type PaymentMethod = 'cod';
-export type OrderStatus = 'pending_payment' | 'received' | 'confirmed' | 'cooking' | 'ready' | 'completed' | 'cancelled';
+export type OrderStatus = 'received' | 'confirmed' | 'cooking' | 'ready' | 'completed' | 'cancelled';
 
 export interface OrderLine {
   menuItemId: string; name: string; isNonVeg: boolean; selectedOption?: string;
@@ -55,6 +55,3 @@ export interface OrderRecord {
   paymentMethod: PaymentMethod; paymentStatus: string; status: OrderStatus;
   createdAt: string; updatedAt: string; estimatedMinutes: number;
 }
-
-export type OrderDetails = OrderRecord;
-

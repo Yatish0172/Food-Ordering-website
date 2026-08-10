@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import dotenv from 'dotenv';
 import express from 'express';
 import helmet from 'helmet';
@@ -18,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MENU_ITEMS } from '../src/data/menuItems';
 import { optionSurcharge } from '../src/pricing';
-import { getStoreStatus } from '../src/storeHours';
+import { getBusinessDayRange, getStoreStatus } from '../src/storeHours';
 
 dotenv.config({ path: '.env.local', override: false });
 
@@ -128,6 +127,11 @@ const orderColumns = db.prepare("PRAGMA table_info(orders)").all() as Array<{ na
 if (!orderColumns.some(column => column.name === 'user_id')) db.exec('ALTER TABLE orders ADD COLUMN user_id TEXT');
 db.exec('CREATE INDEX IF NOT EXISTS idx_orders_user_created ON orders(user_id, created_at DESC)');
 const app = express();
+const asyncRoute = (
+  handler: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<unknown>,
+): express.RequestHandler => (req, res, next) => {
+  void handler(req, res, next).catch(next);
+};
 app.disable('x-powered-by');
 app.set('trust proxy', TRUST_PROXY_HOPS || false);
 app.use(helmet({
@@ -392,7 +396,7 @@ const accountSchema = z.object({
   rememberMe: z.boolean().optional().default(true),
 });
 
-app.post('/api/auth/register', registrationLimiter, async (req, res) => {
+app.post('/api/auth/register', registrationLimiter, asyncRoute(async (req, res) => {
   const parsed = accountSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Please check your account details.', details: parsed.error.flatten() });
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(parsed.data.email);
@@ -408,9 +412,9 @@ app.post('/api/auth/register', registrationLimiter, async (req, res) => {
   issueCustomerSession(res, id, parsed.data.rememberMe);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow;
   res.status(201).json({ user: publicUser(user) });
-});
+}));
 
-app.post('/api/auth/login', customerAuthLimiter, async (req, res) => {
+app.post('/api/auth/login', customerAuthLimiter, asyncRoute(async (req, res) => {
   const parsed = z.object({ email: z.string().trim().email().max(120), password: z.string().min(1).max(72), rememberMe: z.boolean().optional().default(true) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Enter a valid email and password.' });
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(parsed.data.email.toLowerCase()) as UserRow | undefined;
@@ -420,7 +424,7 @@ app.post('/api/auth/login', customerAuthLimiter, async (req, res) => {
   db.prepare('DELETE FROM customer_sessions WHERE expires_at <= ?').run(new Date().toISOString());
   issueCustomerSession(res, user.id, parsed.data.rememberMe);
   res.json({ user: publicUser(user) });
-});
+}));
 
 app.get('/api/auth/me', (req, res) => {
   const user = sessionUser(req);
@@ -485,14 +489,14 @@ app.get('/api/orders/:id', trackingLimiter, (req, res) => {
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: true, legacyHeaders: false, skipSuccessfulRequests: true });
 const passwordHash = bcrypt.hashSync(ADMIN_PASSWORD, 12);
 
-app.post('/api/admin/login', loginLimiter, async (req, res) => {
+app.post('/api/admin/login', loginLimiter, asyncRoute(async (req, res) => {
   const parsed = z.object({ email: z.string().email(), password: z.string().min(8).max(200) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Enter a valid email and password.' });
   const emailMatches = safeEqual(parsed.data.email.toLowerCase(), ADMIN_EMAIL);
   const passwordMatches = await bcrypt.compare(parsed.data.password, passwordHash);
   if (!emailMatches || !passwordMatches) return res.status(401).json({ error: 'Invalid admin credentials.' });
   res.json({ token: createAdminToken(), admin: { email: ADMIN_EMAIL } });
-});
+}));
 
 app.get('/api/admin/orders', requireAdmin, (req, res) => {
   const status = String(req.query.status || 'active');
@@ -523,8 +527,11 @@ app.get('/api/admin/orders', requireAdmin, (req, res) => {
 app.patch('/api/admin/orders/:id/status', requireAdmin, (req, res) => {
   const parsed = z.object({ status: z.enum(['received', 'confirmed', 'cooking', 'ready', 'completed', 'cancelled']) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid order status.' });
-  const result = db.prepare('UPDATE orders SET status = ?, updated_at = ? WHERE id = ?')
-    .run(parsed.data.status, new Date().toISOString(), req.params.id);
+  const result = db.prepare(`UPDATE orders
+    SET status = ?,
+        payment_status = CASE WHEN ? = 'completed' THEN 'cod_collected' WHEN ? = 'cancelled' THEN 'cancelled' ELSE 'cod_pending' END,
+        updated_at = ?
+    WHERE id = ?`).run(parsed.data.status, parsed.data.status, parsed.data.status, new Date().toISOString(), req.params.id);
   if (!result.changes) return res.status(404).json({ error: 'Order not found.' });
   res.json({ order: mapOrder(db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id) as OrderRow, true) });
 });
@@ -534,11 +541,11 @@ app.get('/api/admin/summary', requireAdmin, (_req, res) => {
     SELECT status, COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue
     FROM orders GROUP BY status
   `).all() as Array<{ status: string; count: number; revenue: number }>;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getBusinessDayRange();
   const todayStats = db.prepare(`
     SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue
-    FROM orders WHERE substr(created_at, 1, 10) = ? AND status != 'cancelled'
-  `).get(today);
+    FROM orders WHERE created_at >= ? AND created_at < ? AND status != 'cancelled'
+  `).get(today.start, today.end);
   res.json({ byStatus: rows, today: todayStats });
 });
 

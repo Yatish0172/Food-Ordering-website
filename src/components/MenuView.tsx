@@ -7,27 +7,30 @@ interface MenuViewProps {
   searchQuery: string;
 }
 
+const GROUP_CATEGORIES: GroupCategory[] = [
+  'All',
+  'Beverages & Refreshers',
+  'Shakes & Mocktails',
+  'Starters & Snacks',
+  'Fast Food & Pizzas',
+  'Maggi & Noodles',
+  'Main Course & Combos',
+  'Rice, Biryani & Breads',
+  'Sweets & Desserts',
+];
 export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) => {
   const [selectedGroup, setSelectedGroup] = useState<GroupCategory>('All');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('All');
   const [showFloatingCategoryMenu, setShowFloatingCategoryMenu] = useState(false);
   const [isMobileCategoryMenuOpen, setIsMobileCategoryMenuOpen] = useState(false);
   const categorySelectorRef = useRef<HTMLDivElement | null>(null);
+  const floatingCategoryButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mobileCategoryCloseRef = useRef<HTMLButtonElement | null>(null);
+  const itemModalCloseRef = useRef<HTMLButtonElement | null>(null);
   const [dietaryFilter, setDietaryFilter] = useState<'All' | 'Veg' | 'Non-Veg'>('All');
   const [activeItemModal, setActiveItemModal] = useState<MenuItem | null>(null);
   const [selectedCustomOption, setSelectedCustomOption] = useState<string>('');
 
-  const groupCategories: GroupCategory[] = [
-    'All',
-    'Beverages & Refreshers',
-    'Shakes & Mocktails',
-    'Starters & Snacks',
-    'Fast Food & Pizzas',
-    'Maggi & Noodles',
-    'Main Course & Combos',
-    'Rice, Biryani & Breads',
-    'Sweets & Desserts',
-  ];
 
   // Derive subcategories available for the currently selected Group Category
   const availableSubCategories = useMemo(() => {
@@ -69,6 +72,8 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
     if (!isMobileCategoryMenuOpen) return;
 
     const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    mobileCategoryCloseRef.current?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsMobileCategoryMenuOpen(false);
     };
@@ -79,8 +84,26 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
+      (previousFocus || floatingCategoryButtonRef.current)?.focus();
     };
   }, [isMobileCategoryMenuOpen]);
+
+  useEffect(() => {
+    if (!activeItemModal) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    itemModalCloseRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveItemModal(null);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, [activeItemModal]);
 
   const filteredItems = useMemo(() => {
     return MENU_ITEMS.filter((item) => {
@@ -202,7 +225,7 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
 
         {/* Group Category Tabs */}
         <div className="flex overflow-x-auto pb-2 gap-2.5 snap-x hide-scrollbar">
-          {groupCategories.map((group) => {
+          {GROUP_CATEGORIES.map((group) => {
             const isActive = selectedGroup === group && searchQuery.trim() === '';
             return (
               <button
@@ -292,6 +315,8 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       alt={item.name}
                       src={item.image}
+                      loading="lazy"
+                      decoding="async"
                       referrerPolicy="no-referrer"
                     />
                     <div className="grain-overlay"></div>
@@ -380,6 +405,7 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
 
       {showFloatingCategoryMenu && (
         <button
+          ref={floatingCategoryButtonRef}
           type="button"
           aria-haspopup="dialog"
           aria-expanded={isMobileCategoryMenuOpen}
@@ -418,6 +444,7 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
                 </h2>
               </div>
               <button
+                ref={mobileCategoryCloseRef}
                 type="button"
                 aria-label="Close menu categories"
                 onClick={() => setIsMobileCategoryMenuOpen(false)}
@@ -428,7 +455,7 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              {groupCategories.map((group) => {
+              {GROUP_CATEGORIES.map((group) => {
                 const isSelected = selectedGroup === group;
                 return (
                   <button
@@ -455,7 +482,7 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
       )}
       {/* Custom Option Selection Modal */}
       {activeItemModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0c1322]/85 backdrop-blur-md">
+        <div role="dialog" aria-modal="true" aria-labelledby="item-option-title" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0c1322]/85 backdrop-blur-md">
           <div className="glass-panel w-full max-w-md rounded-2xl p-6 border-2 border-[#ffb2ba] shadow-[0_0_25px_rgba(255,178,186,0.3)] animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-start mb-4">
               <div>
@@ -473,7 +500,7 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
                       }`}
                     ></div>
                   </div>
-                  <h3 className="font-['Bricolage_Grotesque'] text-2xl font-bold text-[#dce2f8]">
+                  <h3 id="item-option-title" className="font-['Bricolage_Grotesque'] text-2xl font-bold text-[#dce2f8]">
                     {activeItemModal.name}
                   </h3>
                 </div>
@@ -482,6 +509,9 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
                 </span>
               </div>
               <button
+                ref={itemModalCloseRef}
+                type="button"
+                aria-label="Close item options"
                 onClick={() => setActiveItemModal(null)}
                 className="text-[#e7bcbf] hover:text-[#ffb2ba] text-2xl cursor-pointer"
               >

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { getStoreStatus } from '../src/storeHours';
+import { getBusinessDayRange, getStoreStatus } from '../src/storeHours';
 
 const at = (iso: string) => getStoreStatus(new Date(iso));
 
@@ -13,4 +13,12 @@ assert.equal(at('2026-08-10T15:29:00.000Z').open, true, 'open through dinner ses
 assert.equal(at('2026-08-10T15:30:00.000Z').open, false, 'closes at 9:00 PM IST');
 assert.match(at('2026-08-10T15:30:00.000Z').nextChange, /tomorrow at 11:30 AM/);
 
+assert.deepEqual(getBusinessDayRange(new Date('2026-08-10T18:29:59.999Z')), {
+  start: '2026-08-09T18:30:00.000Z',
+  end: '2026-08-10T18:30:00.000Z',
+});
+assert.deepEqual(getBusinessDayRange(new Date('2026-08-10T18:30:00.000Z')), {
+  start: '2026-08-10T18:30:00.000Z',
+  end: '2026-08-11T18:30:00.000Z',
+});
 console.log('PASS store-hours boundaries and next-opening messages');

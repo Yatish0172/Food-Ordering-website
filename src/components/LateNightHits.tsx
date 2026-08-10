@@ -35,14 +35,20 @@ export const LateNightHits: React.FC<LateNightHitsProps> = ({ onAddToCart, onNav
       {/* Bento Grid Layout */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 auto-rows-[250px]">
         {/* Bento Card 1 (Large 2x2) - Cheesy Loaded French Fries */}
-        <div 
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={`Add ${friesItem.name} to cart`}
           onClick={() => onAddToCart(friesItem)}
+          onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onAddToCart(friesItem); } }}
           className="col-span-1 md:col-span-2 row-span-1 md:row-span-2 glass-panel rounded-2xl overflow-hidden relative group cursor-pointer border border-white/10 hover:border-[#ffb2ba]/50 transition-all shadow-lg"
         >
           <img 
             className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
             alt={friesItem.name} 
-            src={friesItem.image || 'https://images.unsplash.com/photo-1576107232684-1279f390859f?auto=format&fit=crop&w=800&q=80'} 
+            src={friesItem.image || 'https://images.unsplash.com/photo-1576107232684-1279f390859f?auto=format&fit=crop&w=800&q=80'}
+            loading="lazy"
+            decoding="async"
             referrerPolicy="no-referrer"
           />
           <div className="grain-overlay"></div>
@@ -81,14 +87,20 @@ export const LateNightHits: React.FC<LateNightHitsProps> = ({ onAddToCart, onNav
         </div>
 
         {/* Bento Card 2 - Blue Lagoon Mojito */}
-        <div 
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={`Add ${mojitoItem.name} to cart`}
           onClick={() => onAddToCart(mojitoItem)}
+          onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onAddToCart(mojitoItem); } }}
           className="col-span-1 md:col-span-1 row-span-1 glass-panel rounded-2xl overflow-hidden relative group cursor-pointer border border-white/10 hover:border-[#00eefc]/50 transition-colors"
         >
           <img 
             className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
             alt={mojitoItem.name} 
-            src={mojitoItem.image || 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=800&q=80'} 
+            src={mojitoItem.image || 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=800&q=80'}
+            loading="lazy"
+            decoding="async"
             referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-[#0c1322]/40 group-hover:bg-[#0c1322]/20 transition-colors"></div>
@@ -109,8 +121,12 @@ export const LateNightHits: React.FC<LateNightHitsProps> = ({ onAddToCart, onNav
         </div>
 
         {/* Bento Card 3 - Butter Chicken Momos */}
-        <div 
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={`Add ${momoItem.name} to cart`}
           onClick={() => onAddToCart(momoItem)}
+          onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onAddToCart(momoItem); } }}
           className="col-span-1 md:col-span-1 row-span-1 glass-panel rounded-2xl overflow-hidden relative group cursor-pointer border border-white/10 hover:border-[#ffb2ba]/50 transition-colors flex items-center justify-center p-4 bg-gradient-to-br from-[#ff562c]/10 to-[#670020]/40"
         >
           <div className="flex flex-col items-center justify-center text-center">
@@ -143,8 +159,10 @@ export const LateNightHits: React.FC<LateNightHitsProps> = ({ onAddToCart, onNav
             <img 
               className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
               alt={turkishChicken.name} 
-              src="https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?auto=format&fit=crop&w=800&q=80" 
-              referrerPolicy="no-referrer"
+              src={turkishChicken.image || 'https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?auto=format&fit=crop&w=800&q=80'}
+              loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
             />
           </div>
 

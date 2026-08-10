@@ -56,12 +56,27 @@ const loadCurrentScreen = (): ScreenType => {
   return saved && VALID_SCREENS.has(saved as ScreenType) ? saved as ScreenType : 'home';
 };
 
+const ORDER_STATUSES = new Set(['received', 'confirmed', 'cooking', 'ready', 'completed', 'cancelled']);
+
 const loadLatestOrder = (): OrderRecord | null => {
   try {
     const saved: unknown = JSON.parse(sessionStorage.getItem(LATEST_ORDER_STORAGE_KEY) || 'null');
     if (!saved || typeof saved !== 'object') return null;
     const order = saved as Partial<OrderRecord>;
-    return typeof order.id === 'string' && typeof order.orderNumber === 'string'
+    const validItems = Array.isArray(order.items) && order.items.every(item =>
+      item && typeof item.menuItemId === 'string' && typeof item.name === 'string'
+      && Number.isInteger(item.quantity) && item.quantity > 0
+      && Number.isFinite(item.lineTotal),
+    );
+    return typeof order.id === 'string'
+      && typeof order.orderNumber === 'string'
+      && typeof order.status === 'string'
+      && ORDER_STATUSES.has(order.status)
+      && order.paymentMethod === 'cod'
+      && typeof order.createdAt === 'string'
+      && typeof order.updatedAt === 'string'
+      && Number.isFinite(order.total)
+      && validItems
       ? order as OrderRecord
       : null;
   } catch {
@@ -84,6 +99,9 @@ export default function App() {
 
   useEffect(() => localStorage.setItem('tkk-cart', JSON.stringify(cartItems)), [cartItems]);
   useEffect(() => sessionStorage.setItem(SCREEN_STORAGE_KEY, currentScreen), [currentScreen]);
+  useEffect(() => {
+    if (currentScreen === 'checkout' && cartItems.length === 0) setCurrentScreen('menu');
+  }, [cartItems.length, currentScreen]);
   useEffect(() => {
     if (latestOrder) sessionStorage.setItem(LATEST_ORDER_STORAGE_KEY, JSON.stringify(latestOrder));
     else sessionStorage.removeItem(LATEST_ORDER_STORAGE_KEY);
@@ -185,8 +203,10 @@ export default function App() {
         {currentScreen === 'confirmation' && (
           <OrderConfirmationView orderDetails={latestOrder} onNavigate={handleNavigate} />
         )}
-        {currentScreen === 'login' && !authLoading && (
-          <LoginView currentUser={currentUser} onAuthenticated={setCurrentUser} onLogout={handleCustomerLogout} onNavigate={handleNavigate} />
+        {currentScreen === 'login' && (
+          authLoading
+            ? <div role="status" className="min-h-screen pt-36 text-center text-[#e7bcbf]">Loading your account…</div>
+            : <LoginView currentUser={currentUser} onAuthenticated={setCurrentUser} onLogout={handleCustomerLogout} onNavigate={handleNavigate} />
         )}
         {currentScreen === 'orders' && (
           <OrdersView onNavigate={handleNavigate} />

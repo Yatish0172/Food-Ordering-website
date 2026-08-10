@@ -223,6 +223,8 @@ try {
     body: JSON.stringify({ status: 'completed' }),
   });
   assert.equal(result.response.status, 200);
+  assert.equal(result.body.order.paymentStatus, 'cod_collected');
+  pass('completed COD order records payment collection');
   result = await call('/api/admin/orders?status=history&page=1', { headers: { Authorization: 'Bearer ' + token } });
   assert.equal(result.response.status, 200);
   assert.equal(result.body.orders.some(entry => entry.id === order.id), true);

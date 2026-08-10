@@ -5,7 +5,7 @@ import { OrderRecord, OrderStatus } from '../types';
 
 const statusOptions: OrderStatus[] = ['received', 'confirmed', 'cooking', 'ready', 'completed', 'cancelled'];
 const badge: Record<string, string> = {
-  pending_payment: 'bg-amber-400/15 text-amber-300', received: 'bg-cyan-400/15 text-cyan-300',
+  received: 'bg-cyan-400/15 text-cyan-300',
   confirmed: 'bg-blue-400/15 text-blue-300', cooking: 'bg-pink-400/15 text-pink-300',
   ready: 'bg-emerald-400/15 text-emerald-300', completed: 'bg-white/10 text-white/70',
   cancelled: 'bg-red-400/15 text-red-300',
@@ -107,7 +107,7 @@ export const AdminDashboard = ({ token, onLogout, onBack }: { token: string; onL
           <button type="button" role="tab" aria-selected={section === 'history'} onClick={() => openSection('history')} className={`rounded-2xl border p-4 text-left ${section === 'history' ? 'border-[#ffb2ba] bg-[#ffb2ba]/10 text-[#ffb2ba]' : 'border-white/10 bg-[#191f2f]'}`}><span className="material-symbols-outlined align-middle mr-2">history</span><strong>ORDER HISTORY</strong><small className="block mt-1 text-current/70">All completed and cancelled orders</small></button>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-3 mb-5">
-          {filterOptions.map(status => <button key={status} onClick={() => chooseFilter(status)} className={`shrink-0 px-4 py-2 rounded-full text-xs font-['Space_Mono'] font-bold uppercase ${filter === status ? 'bg-[#00dbe9] text-[#002022]' : 'bg-[#191f2f] border border-white/10'}`}>{status === 'active' ? 'all active' : status === 'history' ? 'all history' : status.replace('_', ' ')}</button>)}
+          {filterOptions.map(status => <button key={status} onClick={() => chooseFilter(status)} className={`shrink-0 px-4 py-2 rounded-full text-xs font-['Space_Mono'] font-bold uppercase ${filter === status ? 'bg-[#00dbe9] text-[#002022]' : 'bg-[#191f2f] border border-white/10'}`}>{status === 'active' ? 'all active' : status === 'history' ? 'all history' : status.replaceAll('_', ' ')}</button>)}
         </div>
         {error && <div className="border border-red-400/40 bg-red-400/10 text-red-200 rounded-xl p-4 mb-5">{error}</div>}
         <div className="grid xl:grid-cols-[1fr_430px] gap-6">
@@ -118,7 +118,7 @@ export const AdminDashboard = ({ token, onLogout, onBack }: { token: string; onL
                 {orders.map(order => (
                   <button key={order.id} onClick={()=>setSelected(order)} className="w-full p-5 text-left hover:bg-white/5 grid md:grid-cols-[1.2fr_.8fr_.6fr] gap-3 items-center">
                     <div><strong className="text-[#dce2f8]">{order.orderNumber}</strong><small className="block text-[#e7bcbf]">{order.customer?.firstName} {order.customer?.lastName} · {new Date(order.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</small></div>
-                    <div><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${badge[order.status] || badge.completed}`}>{order.status.replace('_',' ')}</span><small className="block mt-2 text-[#e7bcbf] uppercase">{order.paymentMethod} · {order.paymentStatus}</small></div>
+                    <div><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${badge[order.status] || badge.completed}`}>{order.status.replaceAll('_', ' ')}</span><small className="block mt-2 text-[#e7bcbf] uppercase">{order.paymentMethod} · {order.paymentStatus}</small></div>
                     <strong className="md:text-right text-[#00dbe9] text-xl">₹{order.total}</strong>
                   </button>
                 ))}
@@ -135,7 +135,7 @@ export const AdminDashboard = ({ token, onLogout, onBack }: { token: string; onL
               <div>
                 <div className="flex justify-between gap-4 mb-5"><div><small className="text-[#00dbe9]">ORDER</small><h2 className="text-2xl font-bold">{selected.orderNumber}</h2></div><strong className="text-2xl text-[#ffb2ba]">₹{selected.total}</strong></div>
                 <div className="bg-[#0c1322] rounded-xl p-4 mb-5 text-sm space-y-1"><strong>{selected.customer?.firstName} {selected.customer?.lastName}</strong><p>{selected.customer?.phone}</p><p>{selected.customer?.email}</p><p className="pt-2 text-[#e7bcbf]">{selected.fulfilment?.type === 'delivery' ? `${selected.fulfilment.streetAddress}, ${selected.fulfilment.aptSuite || ''} · ${selected.fulfilment.zipCode}` : 'Kitchen pickup'}</p>{selected.fulfilment?.instructions && <p className="pt-2 text-[#ffb2ba]">Note: {selected.fulfilment.instructions}</p>}</div>
-                <div className="space-y-3 mb-6">{selected.items.map((item,index)=><div key={index} className="flex justify-between gap-3 border-b border-white/10 pb-2"><span>{item.quantity}× {item.name}<small className="block text-[#00dbe9]">{item.selectedOption}</small></span><strong>₹{item.lineTotal}</strong></div>)}</div>
+                <div className="space-y-3 mb-6">{selected.items.map((item, index)=><div key={`${item.menuItemId}-${item.selectedOption || 'default'}-${index}`} className="flex justify-between gap-3 border-b border-white/10 pb-2"><span>{item.quantity}× {item.name}<small className="block text-[#00dbe9]">{item.selectedOption}</small></span><strong>₹{item.lineTotal}</strong></div>)}</div>
                 <label className="text-xs text-[#e7bcbf] block mb-2">UPDATE KITCHEN STATUS</label>
                 <select value={selected.status} onChange={e=>updateStatus(selected,e.target.value as OrderStatus)} className="w-full bg-[#0c1322] border border-[#00dbe9] rounded-xl p-3 font-bold uppercase">{statusOptions.map(status=><option key={status}>{status}</option>)}</select>
               </div>

@@ -79,6 +79,7 @@ try {
   assert(updated.response.status === 200 && updated.payload.order.status === 'confirmed', 'admin status update');
   const completed = await api(`/api/admin/orders/${order.payload.order.id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admin.payload.token}` }, body: JSON.stringify({ status: 'completed' }) });
   assert(completed.response.status === 200 && completed.payload.order.status === 'completed', 'completed order archived');
+  assert(completed.payload.order.paymentStatus === 'cod_collected', 'completed COD order records payment collection');
   const history = await api('/api/admin/orders?status=history&page=1', { headers: { Authorization: `Bearer ${admin.payload.token}` } });
   assert(history.response.status === 200 && history.payload.orders.some(entry => entry.id === order.payload.order.id) && history.payload.pagination.total >= 1, 'paginated order history retains completed orders');
   const activeOrders = await api('/api/admin/orders?status=active&page=1', { headers: { Authorization: `Bearer ${admin.payload.token}` } });

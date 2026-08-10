@@ -3192,16 +3192,3 @@ const LOCAL_MENU_IMAGE_IDS = new Set([
 for (const item of MENU_ITEMS) {
   if (LOCAL_MENU_IMAGE_IDS.has(item.id)) item.image = `/menu/${item.id}.jpg`;
 }
-
-export const INITIAL_CART = [
-  {
-    id: 'cart-1',
-    menuItem: MENU_ITEMS.find((i) => i.id === 'cheesy-loaded-french-fries')!,
-    quantity: 1,
-  },
-  {
-    id: 'cart-2',
-    menuItem: MENU_ITEMS.find((i) => i.id === 'butter-chicken-momos')!,
-    quantity: 1,
-  },
-];

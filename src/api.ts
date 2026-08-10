@@ -3,15 +3,32 @@ import type { StoreStatus } from './storeHours';
 
 const API_ROOT = '/api';
 
+const REQUEST_TIMEOUT_MS = 15_000;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(API_ROOT + path, {
-    credentials: 'same-origin',
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || 'Something went wrong. Please try again.');
-  return payload;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const headers = new Headers(init?.headers);
+  if (init?.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+
+  try {
+    const response = await fetch(API_ROOT + path, {
+      credentials: 'same-origin',
+      ...init,
+      headers,
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || 'Something went wrong. Please try again.');
+    return payload;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('The request timed out. Please check your connection and try again.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 export type CheckoutPayload = {
