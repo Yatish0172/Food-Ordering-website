@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GroupCategory, MenuItem } from '../types';
 import { MENU_ITEMS } from '../data/menuItems';
 
@@ -10,6 +10,9 @@ interface MenuViewProps {
 export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) => {
   const [selectedGroup, setSelectedGroup] = useState<GroupCategory>('All');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('All');
+  const [showFloatingCategoryMenu, setShowFloatingCategoryMenu] = useState(false);
+  const [isMobileCategoryMenuOpen, setIsMobileCategoryMenuOpen] = useState(false);
+  const categorySelectorRef = useRef<HTMLDivElement | null>(null);
   const [dietaryFilter, setDietaryFilter] = useState<'All' | 'Veg' | 'Non-Veg'>('All');
   const [activeItemModal, setActiveItemModal] = useState<MenuItem | null>(null);
   const [selectedCustomOption, setSelectedCustomOption] = useState<string>('');
@@ -42,6 +45,42 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
     setSelectedGroup(group);
     setSelectedSubCategory('All');
   };
+
+  useEffect(() => {
+    const selector = categorySelectorRef.current;
+    if (!selector || typeof IntersectionObserver === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const hasScrolledPastSelector =
+          !entry.isIntersecting && entry.boundingClientRect.bottom < 0;
+
+        setShowFloatingCategoryMenu(hasScrolledPastSelector);
+        if (entry.isIntersecting) setIsMobileCategoryMenuOpen(false);
+      },
+      { threshold: 0.05 },
+    );
+
+    observer.observe(selector);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileCategoryMenuOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMobileCategoryMenuOpen(false);
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMobileCategoryMenuOpen]);
 
   const filteredItems = useMemo(() => {
     return MENU_ITEMS.filter((item) => {
@@ -120,7 +159,7 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
       )}
 
       {/* GROUP CATEGORIES (TOP LEVEL NAVIGATION) */}
-      <div className="mb-6">
+      <div ref={categorySelectorRef} className="mb-6">
         <div className="flex justify-between items-center mb-3">
           <span className="font-['Space_Mono'] text-xs font-bold text-[#00dbe9] uppercase tracking-wider">
             Menu Categories
@@ -338,6 +377,82 @@ export const MenuView: React.FC<MenuViewProps> = ({ onAddToCart, searchQuery }) 
         </div>
       )}
 
+
+      {showFloatingCategoryMenu && (
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded={isMobileCategoryMenuOpen}
+          aria-controls="mobile-category-menu"
+          aria-label="Open menu categories"
+          onClick={() => setIsMobileCategoryMenuOpen(true)}
+          className="md:hidden fixed bottom-5 right-4 z-40 flex h-16 w-16 flex-col items-center justify-center rounded-full bg-[#00dbe9] text-[#002022] shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition-transform active:scale-95"
+        >
+          <span className="material-symbols-outlined text-[26px] leading-none" aria-hidden="true">
+            restaurant_menu
+          </span>
+          <span className="mt-0.5 text-[10px] font-black uppercase tracking-wide">Menu</span>
+        </button>
+      )}
+
+      {showFloatingCategoryMenu && isMobileCategoryMenuOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-50 flex items-end bg-black/65 backdrop-blur-sm"
+          onClick={() => setIsMobileCategoryMenuOpen(false)}
+          role="presentation"
+        >
+          <section
+            id="mobile-category-menu"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-category-menu-title"
+            onClick={(event) => event.stopPropagation()}
+            className="max-h-[78vh] w-full overflow-y-auto rounded-t-[2rem] border-t border-white/10 bg-[#0c1322] px-5 pb-8 pt-3 shadow-2xl"
+          >
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/25" aria-hidden="true" />
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#00dbe9]">Browse</p>
+                <h2 id="mobile-category-menu-title" className="text-xl font-black text-white">
+                  Menu Categories
+                </h2>
+              </div>
+              <button
+                type="button"
+                aria-label="Close menu categories"
+                onClick={() => setIsMobileCategoryMenuOpen(false)}
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white active:scale-95"
+              >
+                <span className="material-symbols-outlined" aria-hidden="true">close</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {groupCategories.map((group) => {
+                const isSelected = selectedGroup === group;
+                return (
+                  <button
+                    key={group}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => {
+                      handleSelectGroup(group);
+                      setIsMobileCategoryMenuOpen(false);
+                    }}
+                    className={`min-h-14 rounded-2xl border px-3 py-3 text-left text-sm font-bold transition active:scale-[0.98] ${
+                      isSelected
+                        ? 'border-[#00dbe9] bg-[#00dbe9] text-[#002022]'
+                        : 'border-white/10 bg-white/5 text-white'
+                    }`}
+                  >
+                    {group}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
       {/* Custom Option Selection Modal */}
       {activeItemModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0c1322]/85 backdrop-blur-md">
