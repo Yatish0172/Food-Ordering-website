@@ -1,6 +1,8 @@
 export const BUSINESS = {
   name: 'The Karaoke Kitchen',
   address: '2 km from UPES, Upper Kandoli, next to PeopleTree Hostel, Bidholi, Dehradun, Uttarakhand 248007',
+  phone: '9084723651',
+  phoneUrl: 'tel:+919084723651',
   mapUrl: 'https://www.google.com/maps/search/?api=1&query=30.3963709%2C77.9689023',
   timeZone: 'Asia/Kolkata',
 } as const;

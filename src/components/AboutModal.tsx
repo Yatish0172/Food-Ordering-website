@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { BUSINESS } from '../storeHours';
 
 interface AboutModalProps {
   isOpen: boolean;
@@ -80,6 +81,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
         </div>
 
         <div className="mt-6 pt-4 border-t border-white/10 flex justify-end">
+          <a href={BUSINESS.phoneUrl} className="mr-auto inline-flex items-center gap-2 text-[#00dbe9] font-['Space_Mono'] text-sm font-bold hover:underline"><span className="material-symbols-outlined">call</span>{BUSINESS.phone}</a>
           <button
             type="button"
             onClick={onClose}
@@ -92,4 +94,3 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
     </div>
   );
 };
-

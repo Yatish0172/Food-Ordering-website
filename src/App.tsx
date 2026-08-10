@@ -45,13 +45,37 @@ const loadCart = (): CartItem[] => {
   }
 };
 
+const SCREEN_STORAGE_KEY = 'tkk-current-screen';
+const LATEST_ORDER_STORAGE_KEY = 'tkk-latest-order';
+const VALID_SCREENS = new Set<ScreenType>([
+  'home', 'menu', 'checkout', 'confirmation', 'login', 'orders', 'admin-login', 'admin',
+]);
+
+const loadCurrentScreen = (): ScreenType => {
+  const saved = sessionStorage.getItem(SCREEN_STORAGE_KEY);
+  return saved && VALID_SCREENS.has(saved as ScreenType) ? saved as ScreenType : 'home';
+};
+
+const loadLatestOrder = (): OrderRecord | null => {
+  try {
+    const saved: unknown = JSON.parse(sessionStorage.getItem(LATEST_ORDER_STORAGE_KEY) || 'null');
+    if (!saved || typeof saved !== 'object') return null;
+    const order = saved as Partial<OrderRecord>;
+    return typeof order.id === 'string' && typeof order.orderNumber === 'string'
+      ? order as OrderRecord
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>(loadCurrentScreen);
   const [cartItems, setCartItems] = useState<CartItem[]>(loadCart);
   const [searchQuery, setSearchQuery] = useState('');
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
-  const [latestOrder, setLatestOrder] = useState<OrderRecord | null>(null);
+  const [latestOrder, setLatestOrder] = useState<OrderRecord | null>(loadLatestOrder);
   const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem('tkk-admin-token') || '');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -59,6 +83,11 @@ export default function App() {
   const [toastNotification, setToastNotification] = useState({ show: false, itemName: '' });
 
   useEffect(() => localStorage.setItem('tkk-cart', JSON.stringify(cartItems)), [cartItems]);
+  useEffect(() => sessionStorage.setItem(SCREEN_STORAGE_KEY, currentScreen), [currentScreen]);
+  useEffect(() => {
+    if (latestOrder) sessionStorage.setItem(LATEST_ORDER_STORAGE_KEY, JSON.stringify(latestOrder));
+    else sessionStorage.removeItem(LATEST_ORDER_STORAGE_KEY);
+  }, [latestOrder]);
   useEffect(() => {
     api.me().then(result => setCurrentUser(result.user)).catch(() => setCurrentUser(null)).finally(() => setAuthLoading(false));
   }, []);
@@ -198,6 +227,3 @@ export default function App() {
     </div>
   );
 }
-
-
-
