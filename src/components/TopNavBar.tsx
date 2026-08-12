@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { StoreStatus } from '../storeHours';
+import { BUSINESS, type StoreStatus } from '../storeHours';
 import type { ScreenType, User } from '../types';
 
 interface Props {
@@ -23,6 +23,12 @@ const KitchenStatusPill = ({ status }: { status: StoreStatus | null }) => {
     </span>
   );
 };
+
+const WhatsAppIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-current">
+    <path d="M12.04 2a9.84 9.84 0 0 0-8.52 14.76L2 22l5.38-1.47A9.96 9.96 0 0 0 12.04 22 10 10 0 0 0 12.04 2Zm0 18.17a8.1 8.1 0 0 1-4.13-1.13l-.3-.18-3.19.87.85-3.1-.2-.32a8.14 8.14 0 1 1 6.97 3.86Zm4.46-6.08c-.24-.12-1.44-.71-1.66-.79-.23-.08-.39-.12-.56.12-.16.25-.63.8-.77.96-.14.17-.29.19-.53.07-.25-.12-1.03-.38-1.97-1.22a7.38 7.38 0 0 1-1.36-1.69c-.14-.24-.02-.37.1-.5.11-.1.25-.28.37-.42.12-.14.16-.24.24-.4.08-.17.04-.31-.02-.43-.06-.12-.55-1.34-.76-1.83-.2-.48-.41-.41-.56-.42h-.48c-.16 0-.43.06-.65.31-.23.24-.86.84-.86 2.05 0 1.2.88 2.37 1 2.53.12.16 1.73 2.64 4.18 3.7.59.25 1.04.4 1.4.52.58.18 1.11.16 1.53.1.47-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28Z" />
+  </svg>
+);
 
 export const TopNavBar = ({ currentScreen, onNavigate, cartCount, onOpenCart, onOpenAbout, searchQuery, onSearchChange, currentUser, storeStatus }: Props) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -56,6 +62,7 @@ export const TopNavBar = ({ currentScreen, onNavigate, cartCount, onOpenCart, on
       <div className="hidden lg:flex items-center gap-6 font-['Space_Mono'] text-xs font-bold"><button onClick={() => onNavigate('menu')} className={currentScreen === 'menu' ? 'text-[#00dbe9]' : 'hover:text-[#ffb2ba]'}>MENU</button><button onClick={() => onNavigate('orders')} className={currentScreen === 'orders' ? 'text-[#00dbe9]' : 'hover:text-[#ffb2ba]'}>MY ORDERS</button><button onClick={onOpenAbout} className="hover:text-[#ffb2ba]">ABOUT</button></div>
       <div className="flex items-center gap-2 md:gap-3">
         <div className="hidden sm:block"><KitchenStatusPill status={storeStatus} /></div>
+        <a href={`https://wa.me/91${BUSINESS.phone}`} target="_blank" rel="noreferrer" aria-label={`Connect with The Karaoke Kitchen on WhatsApp at ${BUSINESS.phone}`} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#25D366] px-2.5 text-xs font-bold text-[#071a0e] transition hover:bg-[#20bd5a] md:h-10 md:px-4"><WhatsAppIcon /><span className="hidden sm:inline">CONNECT NOW</span></a>
         <div className="hidden xl:flex items-center border-b border-[#00dbe9]"><input value={searchQuery} onChange={event => updateSearch(event.target.value)} placeholder="Search menu…" aria-label="Search dishes" className="bg-transparent focus:outline-none text-sm w-28 py-1" /><span className="material-symbols-outlined text-[#00dbe9]" aria-hidden="true">search</span></div>
         <button type="button" onClick={() => setIsSearchOpen(open => !open)} className="xl:hidden w-9 h-9 md:w-10 md:h-10 rounded-full bg-[#2e3445] grid place-items-center text-[#00dbe9]" aria-label={isSearchOpen ? 'Close dish search' : 'Search dishes'} aria-expanded={isSearchOpen} aria-controls="mobile-dish-search"><span className="material-symbols-outlined" aria-hidden="true">{isSearchOpen ? 'close' : 'search'}</span></button>
         <button onClick={() => onNavigate('orders')} className="lg:hidden w-9 h-9 rounded-full bg-[#2e3445] grid place-items-center" aria-label="My orders"><span className="material-symbols-outlined text-lg">receipt_long</span></button>
